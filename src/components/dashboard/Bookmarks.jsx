@@ -494,7 +494,7 @@ const Bookmarks = () => {
   // Load folders from API
   const loadFolders = async () => {
     try {
-      const response = await apiService.getUserFolders();
+      const response = await apiService.getBookmarkFolders();
       setFolders(response.folders || []);
     } catch (err) {
       console.error('Error loading folders:', err);
@@ -522,21 +522,23 @@ const Bookmarks = () => {
     }
   });
 
-  const handleCreateFolder = async () => {
-    if (newFolderName.trim()) {
-      try {
-        const response = await apiService.createFolder({
-          name: newFolderName.trim(),
-          description: `Folder for ${newFolderName.trim()}`
-        });
-        
-        setFolders(prev => [...prev, response.folder]);
-        setNewFolderName('');
-        setShowCreateFolder(false);
-      } catch (err) {
-        setError(err.message || 'Failed to create folder');
-        console.error('Error creating folder:', err);
-      }
+  const handleCreateFolder = async (e) => {
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
+    if (!newFolderName.trim()) {
+      setShowCreateFolder(false);
+      return;
+    }
+    
+    try {
+      await apiService.createBookmarkFolder(newFolderName.trim());
+      setNewFolderName('');
+      setShowCreateFolder(false);
+      await loadFolders();
+    } catch (err) {
+      console.error('Error creating folder:', err);
+      setError(err.message || 'Failed to create folder');
     }
   };
 
@@ -1099,7 +1101,7 @@ const Bookmarks = () => {
                   {folder.name}
                 </h3>
                 <p className="text-xs text-gray-500" style={{ fontFamily: 'Roboto, sans-serif' }}>
-                  {folder.item_count || 0} items
+                  {folder.bookmark_count || 0} items
                 </p>
               </button>
             ))}
@@ -1491,6 +1493,7 @@ const Bookmarks = () => {
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleCreateFolder}
                 className="px-3 sm:px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 w-full sm:w-auto"
               >

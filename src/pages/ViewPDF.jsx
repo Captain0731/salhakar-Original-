@@ -8,8 +8,8 @@ import SummaryPopup from "../components/SummaryPopup";
 import apiService from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
 import { FileText, StickyNote, Share2, Download } from "lucide-react";
+import { marked } from "marked";
 import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 
 export default function ViewPDF() {
   const navigate = useNavigate();
@@ -582,40 +582,46 @@ export default function ViewPDF() {
                                       const currentLang = getCurrentLanguage();
                                       const langName = getLanguageName(currentLang);
                                       
-                                      let contentToDownload = markdownContent;
+                                      // Get judgment ID
+                                      const judgmentId = judgmentInfo?.id || judgmentInfo?.cnr || urlId;
                                       
-                                      // If markdown content is not loaded, fetch it
-                                      if (!contentToDownload) {
-                                        const judgmentId = judgmentInfo?.id || judgmentInfo?.cnr;
-                                        if (judgmentId) {
-                                          contentToDownload = await apiService.getJudgementByIdMarkdown(judgmentId);
-                                          } else {
-                                            alert('Translated PDF not available');
+                                      if (!judgmentId) {
+                                        alert('Judgment ID not available');
                                           setShowDownloadDropdown(false);
                                           return;
-                                          }
                                       }
 
-                                      if (!contentToDownload || contentToDownload.trim() === '') {
-                                          alert('Translated PDF not available');
-                                        setShowDownloadDropdown(false);
-                                        return;
-                                      }
-
-                                      // Show loading message if translating
-                                      if (currentLang !== 'en') {
+                                      // Show loading message
                                         const loadingMsg = document.createElement('div');
                                         loadingMsg.id = 'pdf-translation-loading';
                                         loadingMsg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#1E65AD;color:white;padding:20px 30px;border-radius:8px;z-index:10000;font-family:Roboto,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.3);';
-                                        loadingMsg.textContent = `Translating to ${langName}... Please wait.`;
+                                      loadingMsg.textContent = currentLang !== 'en' 
+                                        ? `Generating PDF in ${langName}... Please wait.`
+                                        : 'Generating PDF... Please wait.';
                                         document.body.appendChild(loadingMsg);
+
+                                      // Fetch markdown content from backend
+                                      let markdownContent = '';
+                                      try {
+                                        markdownContent = await apiService.getJudgementByIdMarkdown(judgmentId);
+                                        
+                                        if (!markdownContent || markdownContent.trim() === '') {
+                                          throw new Error('Markdown content is empty');
+                                        }
+                                      } catch (markdownError) {
+                                        // Remove loading message
+                                        if (loadingMsg && loadingMsg.parentNode) {
+                                          document.body.removeChild(loadingMsg);
+                                        }
+                                        throw new Error('Failed to fetch markdown content: ' + markdownError.message);
                                       }
 
-                                      // Translate content if language is not English
-                                      let finalContent = contentToDownload;
+                                      // Translate markdown if needed (using existing translateText function)
+                                      let finalMarkdown = markdownContent;
                                       if (currentLang !== 'en') {
-                                        // Clean markdown first before translating
-                                        const cleanMarkdown = contentToDownload
+                                        try {
+                                          // Clean markdown before translating
+                                          const cleanMarkdown = markdownContent
                                           .replace(/#{1,6}\s+/g, '') // Remove markdown headers
                                           .replace(/\*\*\*(.*?)\*\*\*/g, '$1') // Remove bold italic
                                           .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
@@ -625,173 +631,127 @@ export default function ViewPDF() {
                                           .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1') // Remove links
                                           .trim();
                                         
-                                        finalContent = await translateText(cleanMarkdown, currentLang);
-                                        
-                                        // Remove loading message
-                                        const loadingMsg = document.getElementById('pdf-translation-loading');
-                                        if (loadingMsg) {
-                                          document.body.removeChild(loadingMsg);
-                                        }
-                                      } else {
-                                        // Remove loading message if it exists
-                                        const loadingMsg = document.getElementById('pdf-translation-loading');
-                                        if (loadingMsg) {
-                                          document.body.removeChild(loadingMsg);
+                                          finalMarkdown = await translateText(cleanMarkdown, currentLang);
+                                        } catch (translateError) {
+                                          console.warn('Translation failed, using original markdown:', translateError);
+                                          finalMarkdown = markdownContent;
                                         }
                                       }
 
-                                      // Create a temporary HTML element to render the text with proper Unicode support
-                                      const tempDiv = document.createElement('div');
-                                      tempDiv.style.position = 'absolute';
-                                      tempDiv.style.left = '-9999px';
-                                      tempDiv.style.width = '210mm'; // A4 width
-                                      tempDiv.style.padding = '20mm';
-                                      tempDiv.style.fontSize = '12pt';
-                                      tempDiv.style.lineHeight = '1.6';
-                                      tempDiv.style.fontFamily = currentLang === 'en' 
-                                        ? 'Arial, sans-serif' 
-                                        : 'Noto Sans Devanagari, Noto Sans Gujarati, Arial Unicode MS, sans-serif';
-                                      tempDiv.style.color = '#1a1a1a';
-                                      tempDiv.style.backgroundColor = '#ffffff';
-                                      tempDiv.style.whiteSpace = 'pre-wrap';
-                                      tempDiv.style.wordWrap = 'break-word';
-                                      
-                                      // Set text content (preserve line breaks and Unicode characters)
-                                      tempDiv.textContent = finalContent;
-                                      
-                                      document.body.appendChild(tempDiv);
+                                      // PDF FILE SIZE OPTIMIZATION - TEXT-BASED APPROACH:
+                                      // Instead of using html2canvas (which creates large image-based PDFs),
+                                      // we'll use jsPDF's native text rendering for much smaller file sizes.
+                                      // This approach converts markdown to plain text and uses jsPDF's text() method.
 
-                                      // Wait a moment for fonts to load
-                                      await new Promise(resolve => setTimeout(resolve, 100));
+                                      // Convert markdown to plain text (strip formatting for smaller size)
+                                      let plainText = finalMarkdown
+                                        .replace(/#{1,6}\s+/g, '') // Remove markdown headers
+                                        .replace(/\*\*\*(.*?)\*\*\*/g, '$1') // Remove bold italic
+                                        .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
+                                        .replace(/\*(.*?)\*/g, '$1') // Remove italic
+                                        .replace(/`(.*?)`/g, '$1') // Remove inline code
+                                        .replace(/```[\s\S]*?```/g, '') // Remove code blocks
+                                        .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1') // Remove links, keep text
+                                        .replace(/!\[([^\]]*)\]\([^\)]+\)/g, '') // Remove images
+                                        .replace(/\n{3,}/g, '\n\n') // Replace multiple newlines with double
+                                        .trim();
 
-                                      // Use html2canvas to capture the HTML as image (handles Unicode properly)
-                                      const canvas = await html2canvas(tempDiv, {
-                                        scale: 2,
-                                        useCORS: true,
-                                        logging: false,
-                                        backgroundColor: '#ffffff',
-                                        width: tempDiv.offsetWidth,
-                                        height: tempDiv.scrollHeight,
-                                        windowWidth: tempDiv.scrollWidth,
-                                        windowHeight: tempDiv.scrollHeight
-                                      });
-
-                                      // Remove temporary element
-                                      document.body.removeChild(tempDiv);
-
-                                      // Create PDF and add the canvas image with proper page breaks
+                                      // Create PDF using jsPDF with text-based rendering (much smaller file size)
                                       const pdf = new jsPDF('p', 'mm', 'a4');
                                       const pageWidth = pdf.internal.pageSize.getWidth();
                                       const pageHeight = pdf.internal.pageSize.getHeight();
-                                      const margin = 20; // mm
-                                      const imgWidth = pageWidth;
-                                      const imgHeight = (canvas.height * pageWidth) / canvas.width;
+                                      const margin = 10; // Minimal margin for maximum space
+                                      const lineHeight = 5; // Compact line height in mm
+                                      const fontSize = 9; // Small font for smaller file size
                                       
-                                      // Get judgment link
-                                      const judgmentId = judgmentInfo?.id || judgmentInfo?.cnr || urlId;
-                                      const judgmentLink = judgmentId 
-                                        ? `${window.location.origin}/judgment/${judgmentId}`
-                                        : window.location.origin;
+                                      pdf.setFontSize(fontSize);
+                                      pdf.setFont('helvetica', 'normal'); // Lightweight font for smaller file size
                                       
-                                      // Function to add footer to a page
-                                      const addFooter = (pdfInstance, pageNum, link) => {
-                                        // Add footer line
-                                        pdfInstance.setDrawColor(200, 200, 200);
-                                        pdfInstance.setLineWidth(0.5);
-                                        pdfInstance.line(margin, pageHeight - 20, pageWidth - margin, pageHeight - 20);
-                                        
-                                        pdfInstance.setTextColor(100, 100, 100);
-                                        pdfInstance.setFontSize(8);
-                                        pdfInstance.setFont('helvetica', 'normal');
-                                        
-                                        // Footer text: salhakar.com (centered)
-                                        const footerText = 'salhakar.com';
-                                        const footerTextWidth = pdfInstance.getTextWidth(footerText);
-                                        const footerX = (pageWidth - footerTextWidth) / 2;
-                                        const footerY = pageHeight - 12;
-                                        pdfInstance.text(footerText, footerX, footerY);
-                                        
-                                        // Page number (center)
-                                        pdfInstance.setFontSize(7);
-                                        pdfInstance.setTextColor(150, 150, 150);
-                                        const pageText = `Page ${pageNum}`;
-                                        const pageTextWidth = pdfInstance.getTextWidth(pageText);
-                                        const pageX = (pageWidth - pageTextWidth) / 2;
-                                        pdfInstance.text(pageText, pageX, footerY - 4);
-                                        
-                                        // Add judgment link (as clickable text on the right)
-                                        if (link) {
-                                          try {
-                                            // Show the actual link URL
-                                            const linkText = link.length > 40 ? link.substring(0, 40) + '...' : link;
-                                            const linkTextWidth = pdfInstance.getTextWidth(linkText);
-                                            const linkX = pageWidth - margin - linkTextWidth;
-                                            const linkY = pageHeight - 12;
-                                            
-                                            // Add text first
-                                            pdfInstance.setTextColor(26, 101, 173); // #1E65AD
-                                            pdfInstance.setFontSize(7);
-                                            pdfInstance.text(linkText, linkX, linkY);
-                                            
-                                            // Add clickable link annotation covering the text area
-                                            pdfInstance.link(linkX, linkY - 3, linkTextWidth, 4, { url: link });
-                                            
-                                            pdfInstance.setFontSize(8); // Reset font size
-                                            pdfInstance.setTextColor(100, 100, 100); // Reset color
-                                          } catch (error) {
-                                            console.warn('Could not add judgment link:', error);
-                                            // Fallback: just show the link text
-                                            const linkText = link.length > 40 ? link.substring(0, 40) + '...' : link;
-                                            const linkTextWidth = pdfInstance.getTextWidth(linkText);
-                                            const linkX = pageWidth - margin - linkTextWidth;
-                                            const linkY = pageHeight - 12;
-                                            pdfInstance.setTextColor(26, 101, 173);
-                                            pdfInstance.setFontSize(7);
-                                            pdfInstance.text(linkText, linkX, linkY);
-                                            pdfInstance.setFontSize(8);
-                                            pdfInstance.setTextColor(100, 100, 100);
-                                          }
+                                      // Split text into lines and handle word wrapping
+                                      const maxWidth = pageWidth - (margin * 2);
+                                      let y = margin;
+                                      const lines = plainText.split('\n');
+                                      
+                                      lines.forEach((line) => {
+                                        if (!line.trim()) {
+                                          // Empty line - add small spacing
+                                          y += lineHeight * 0.5;
+                                          return;
                                         }
-                                      };
-                                      
-                                      let heightLeft = imgHeight;
-                                      let position = 0;
-                                      let pageNum = 1;
-
-                                      // Add first page
-                                      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
-                                      heightLeft -= pageHeight;
-                                      pageNum++;
-
-                                      // Add additional pages if needed
-                                      while (heightLeft >= 0) {
-                                        position = heightLeft - imgHeight;
+                                        
+                                        // Split long lines to fit page width
+                                        const words = line.split(' ');
+                                        let currentLine = '';
+                                        
+                                        words.forEach((word) => {
+                                          const testLine = currentLine ? `${currentLine} ${word}` : word;
+                                          const textWidth = pdf.getTextWidth(testLine);
+                                          
+                                          if (textWidth > maxWidth && currentLine) {
+                                            // Current line is full, write it and start new line
+                                            if (y > pageHeight - margin - lineHeight) {
+                                              pdf.addPage();
+                                              y = margin;
+                                            }
+                                            pdf.text(currentLine, margin, y);
+                                            y += lineHeight;
+                                            currentLine = word;
+                                          } else {
+                                            currentLine = testLine;
+                                          }
+                                        });
+                                        
+                                        // Write remaining line
+                                        if (currentLine) {
+                                          if (y > pageHeight - margin - lineHeight) {
                                         pdf.addPage();
-                                        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
-                                        heightLeft -= pageHeight;
-                                        pageNum++;
+                                            y = margin;
+                                          }
+                                          pdf.text(currentLine, margin, y);
+                                          y += lineHeight;
+                                        }
+                                      });
+
+                                      // Remove loading message
+                                      if (loadingMsg && loadingMsg.parentNode) {
+                                        document.body.removeChild(loadingMsg);
                                       }
 
-                                      // Add footer only on the last page
-                                      const lastPageNum = pdf.internal.getNumberOfPages();
-                                      pdf.setPage(lastPageNum);
-                                      addFooter(pdf, lastPageNum, judgmentLink);
-
-                                      // Download PDF with language name in filename
+                                      // Generate filename
                                       const baseFileName = (judgmentInfo?.title || 'judgment').replace(/[^a-z0-9]/gi, '_');
                                       const fileName = currentLang !== 'en' 
                                         ? `${baseFileName}_${langName}.pdf`
                                         : `${baseFileName}_translated.pdf`;
+                                      
+                                      // Download PDF (text-based, much smaller file size)
                                       pdf.save(fileName);
+                                      console.log('PDF downloaded successfully (text-based, optimized size):', fileName);
                                       
                                       } catch (error) {
-                                        console.error('Error downloading translated PDF:', error);
+                                      console.error('Error generating PDF:', error);
+                                      console.error('Error details:', {
+                                        message: error.message,
+                                        stack: error.stack,
+                                        name: error.name
+                                      });
+                                      
                                       // Remove loading message if it exists
                                       const loadingMsg = document.getElementById('pdf-translation-loading');
-                                      if (loadingMsg) {
+                                      if (loadingMsg && loadingMsg.parentNode) {
                                         document.body.removeChild(loadingMsg);
                                       }
-                                      alert('Failed to download translated PDF. Please try again.');
+                                      
+                                      // Remove temporary element if it exists
+                                      const tempDiv = document.querySelector('div[style*="position: absolute"][style*="-9999px"]');
+                                      if (tempDiv && tempDiv.parentNode) {
+                                        document.body.removeChild(tempDiv);
+                                      }
+                                      
+                                      // Show more helpful error message
+                                      const errorMessage = error.message 
+                                        ? `Failed to generate PDF: ${error.message}` 
+                                        : 'Failed to generate PDF. Please try again.';
+                                      alert(errorMessage);
                                     }
                                     setShowDownloadDropdown(false);
                                   }}
@@ -1005,7 +965,7 @@ export default function ViewPDF() {
                     <img 
                       src="/uit3.GIF" 
                       alt="Search" 
-                      className="absolute left-1.5 sm:left-2.5 md:left-3 top-1/2 transform -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5 object-contain pointer-events-none z-10"
+                      className="absolute left-1.5 sm:left-2.5 md:left-3 top-1/2 transform -translate-y-1/2 h-6 w-10 sm:h-4 sm:w-4 md:h-5 md:w-5 object-contain pointer-events-none z-10"
                     />
                     
                     <input
@@ -2030,11 +1990,105 @@ export default function ViewPDF() {
                     </div>
                   ) : pdfUrl && pdfUrl.trim() !== "" ? (
                     /* PDF View */
-                  <div className="relative h-full w-full" style={{ minHeight: isMobile ? '400px' : '350px', display: 'flex', flexDirection: 'column' }}>
+                  <div className="relative h-full w-full pdf-scrollbar-container" style={{ minHeight: isMobile ? '400px' : '350px', display: 'flex', flexDirection: 'column' }}>
+                    <style>{`
+                      /* Container scrollbar styling */
+                      .pdf-scrollbar-container::-webkit-scrollbar {
+                        width: 14px;
+                        height: 14px;
+                      }
+                      .pdf-scrollbar-container::-webkit-scrollbar-track {
+                        background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+                        border-radius: 10px;
+                        border: 1px solid #dee2e6;
+                      }
+                      .pdf-scrollbar-container::-webkit-scrollbar-thumb {
+                        background: linear-gradient(135deg, #1E65AD 0%, #CF9B63 100%);
+                        border-radius: 10px;
+                        border: 2px solid #f8f9fa;
+                        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                        transition: all 0.3s ease;
+                      }
+                      .pdf-scrollbar-container::-webkit-scrollbar-thumb:hover {
+                        background: linear-gradient(135deg, #1a5a9a 0%, #b88a52 100%);
+                        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+                        transform: scale(1.05);
+                      }
+                      .pdf-scrollbar-container::-webkit-scrollbar-thumb:active {
+                        background: linear-gradient(135deg, #154a7a 0%, #a67a42 100%);
+                      }
+                      .pdf-scrollbar-container::-webkit-scrollbar-button {
+                        background: linear-gradient(180deg, #1E65AD 0%, #CF9B63 100%);
+                        border: 1px solid #dee2e6;
+                        border-radius: 10px;
+                        height: 16px;
+                      }
+                      .pdf-scrollbar-container::-webkit-scrollbar-button:hover {
+                        background: linear-gradient(180deg, #1a5a9a 0%, #b88a52 100%);
+                      }
+                      .pdf-scrollbar-container::-webkit-scrollbar-button:active {
+                        background: linear-gradient(180deg, #154a7a 0%, #a67a42 100%);
+                      }
+                      .pdf-scrollbar-container::-webkit-scrollbar-corner {
+                        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+                        border-radius: 10px;
+                      }
+                      
+                      /* Iframe scrollbar styling */
+                      .pdf-scrollbar-container iframe::-webkit-scrollbar {
+                        width: 14px;
+                        height: 14px;
+                      }
+                      .pdf-scrollbar-container iframe::-webkit-scrollbar-track {
+                        background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+                        border-radius: 10px;
+                        border: 1px solid #dee2e6;
+                      }
+                      .pdf-scrollbar-container iframe::-webkit-scrollbar-thumb {
+                        background: linear-gradient(135deg, #1E65AD 0%, #CF9B63 100%);
+                        border-radius: 10px;
+                        border: 2px solid #f8f9fa;
+                        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                        transition: all 0.3s ease;
+                      }
+                      .pdf-scrollbar-container iframe::-webkit-scrollbar-thumb:hover {
+                        background: linear-gradient(135deg, #1a5a9a 0%, #b88a52 100%);
+                        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+                      }
+                      .pdf-scrollbar-container iframe::-webkit-scrollbar-thumb:active {
+                        background: linear-gradient(135deg, #154a7a 0%, #a67a42 100%);
+                      }
+                      .pdf-scrollbar-container iframe::-webkit-scrollbar-button {
+                        background: linear-gradient(180deg, #1E65AD 0%, #CF9B63 100%);
+                        border: 1px solid #dee2e6;
+                        border-radius: 10px;
+                        height: 16px;
+                      }
+                      .pdf-scrollbar-container iframe::-webkit-scrollbar-button:hover {
+                        background: linear-gradient(180deg, #1a5a9a 0%, #b88a52 100%);
+                      }
+                      .pdf-scrollbar-container iframe::-webkit-scrollbar-button:active {
+                        background: linear-gradient(180deg, #154a7a 0%, #a67a42 100%);
+                      }
+                      .pdf-scrollbar-container iframe::-webkit-scrollbar-corner {
+                        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+                        border-radius: 10px;
+                      }
+                      
+                      /* Firefox scrollbar styling */
+                      .pdf-scrollbar-container {
+                        scrollbar-width: thin;
+                        scrollbar-color: #1E65AD #f1f1f1;
+                      }
+                      .pdf-scrollbar-container iframe {
+                        scrollbar-width: thin;
+                        scrollbar-color: #1E65AD #f1f1f1;
+                      }
+                    `}</style>
                     {/* PDF Embed - Display inline for both mobile and desktop */}
                     <div className="w-full h-full flex-1" style={{ minHeight: isMobile ? '400px' : '350px', position: 'relative' }}>
                       <iframe
-                        src={`${pdfUrl}#toolbar=1&navpanes=0&scrollbar=1&page=${currentPage}&zoom=${isMobile ? 'page-width' : 'page-fit'}&view=FitH`}
+                        src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=1&page=${currentPage}&zoom=${isMobile ? 'page-width' : 'page-fit'}&view=FitH`}
                         className="absolute inset-0 w-full h-full border-0 rounded-lg"
                         title={location.state?.act ? 'Act PDF' : 'Judgment PDF'}
                         style={{ 
@@ -2573,3 +2627,4 @@ export default function ViewPDF() {
     </div>
   );
 }
+

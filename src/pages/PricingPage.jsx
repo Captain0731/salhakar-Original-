@@ -307,21 +307,26 @@ function PricingPage() {
       <Navbar />
 
       {/* Hero Section */}
-      <section className="pt-14 sm:pt-16 md:pt-20 lg:pt-28 pb-6 sm:pb-8 md:pb-12 lg:pb-16 bg-white relative z-20 w-full border-2 border-gray-200 shadow-lg">
+      <section 
+        className="pt-14 sm:pt-16 md:pt-20 lg:pt-28 pb-6 sm:pb-8 md:pb-12 lg:pb-16 relative z-20 w-full border-2 border-gray-200 shadow-lg"
+        style={{
+          background: 'linear-gradient(135deg, #1E65AD 0%, #1a5a9a 30%, #CF9B63 100%)'
+        }}
+      >
         <div className="w-full mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 text-center pt-4 sm:pt-6 md:pt-7">
           <h1
             className="text-xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl 2xl:text-6xl font-bold mb-3 sm:mb-4 md:mb-6 leading-tight"
             style={{
-              color: "#1E65AD",
+              color: "#FFFFFF",
               fontFamily: "'Heebo', 'Helvetica Hebrew Bold', sans-serif",
               fontWeight: 700
             }}
           >
             Pricing Plans
           </h1>
-          <div className="w-16 sm:w-18 md:w-20 h-0.5 sm:h-1 bg-[#CF9B63] mx-auto rounded-full mb-2 sm:mb-3 md:mb-4"></div>
+          <div className="w-16 sm:w-18 md:w-20 h-0.5 sm:h-1 bg-white mx-auto rounded-full mb-2 sm:mb-3 md:mb-4"></div>
           <p
-            className="text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl text-[#8C969F] max-w-2xl mx-auto mb-3 sm:mb-4 md:mb-6 leading-relaxed pt-2 sm:pt-3 md:pt-4 px-2"
+            className="text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl text-white max-w-2xl mx-auto mb-3 sm:mb-4 md:mb-6 leading-relaxed pt-2 sm:pt-3 md:pt-4 px-2"
             style={{
               fontFamily: "'Roboto', sans-serif",
               fontWeight: 400

@@ -1,14 +1,30 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { motion } from "framer-motion";
+import ReactMarkdown from "react-markdown";
 import Navbar from "../components/landing/Navbar";
 import apiService from "../services/api";
 import BookmarkButton from "../components/BookmarkButton";
 import SummaryPopup from "../components/SummaryPopup";
-import { FileText, StickyNote, Share2 } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
+import { marked } from "marked";
+import jsPDF from "jspdf";
+import { FileText, StickyNote, Share2, Download } from "lucide-react";
 
 export default function ActDetails() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isAuthenticated } = useAuth();
+  
+  // Additional check to ensure token exists - memoized to update when token changes
+  const isUserAuthenticated = useMemo(() => {
+    const token = localStorage.getItem('access_token') || 
+                  localStorage.getItem('accessToken') || 
+                  localStorage.getItem('token');
+    const hasValidToken = !!token && token !== 'null' && token !== 'undefined';
+    return isAuthenticated && hasValidToken;
+  }, [isAuthenticated]);
+  
   const [act, setAct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -29,6 +45,103 @@ export default function ActDetails() {
   
   // Summary popup state
   const [summaryPopupOpen, setSummaryPopupOpen] = useState(false);
+  
+  // Download dropdown state
+  const [showDownloadDropdown, setShowDownloadDropdown] = useState(false);
+
+  // Markdown and translation state
+  const [showMarkdown, setShowMarkdown] = useState(false);
+  const [markdownContent, setMarkdownContent] = useState("");
+  const [translatedMarkdown, setTranslatedMarkdown] = useState("");
+  const [loadingMarkdown, setLoadingMarkdown] = useState(false);
+  const [loadingTranslation, setLoadingTranslation] = useState(false);
+  const [markdownError, setMarkdownError] = useState("");
+
+  // Language functions (similar to ViewPDF.jsx)
+  const getCurrentLanguage = () => {
+    if (typeof window === 'undefined') return 'en';
+    
+    const cookie = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('selectedLanguage='));
+    
+    if (cookie) {
+      return cookie.split('=')[1] || 'en';
+    }
+    
+    return localStorage.getItem('selectedLanguage') || 'en';
+  };
+
+  const getLanguageName = (langCode) => {
+    const langNames = {
+      'en': 'English',
+      'hi': 'Hindi',
+      'gu': 'Gujarati',
+      'mr': 'Marathi',
+      'ta': 'Tamil',
+      'te': 'Telugu',
+      'kn': 'Kannada',
+      'ml': 'Malayalam',
+      'bn': 'Bengali',
+      'pa': 'Punjabi',
+      'ur': 'Urdu',
+      'or': 'Odia',
+      'as': 'Assamese'
+    };
+    return langNames[langCode] || langCode.toUpperCase();
+  };
+
+  // Translation function
+  const translateText = async (text, targetLang) => {
+    if (!text || !text.trim() || targetLang === 'en') {
+      return text;
+    }
+
+    try {
+      const response = await fetch('https://api.mymemory.translated.net/get', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const maxLength = 500;
+      const chunks = [];
+      for (let i = 0; i < text.length; i += maxLength) {
+        chunks.push(text.slice(i, i + maxLength));
+      }
+
+      const translatedChunks = await Promise.all(
+        chunks.map(async (chunk) => {
+          try {
+            const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(chunk)}&langpair=en|${targetLang}`;
+            const chunkResponse = await fetch(url);
+            const chunkData = await chunkResponse.json();
+            
+            if (chunkData.responseData && chunkData.responseData.translatedText) {
+              return chunkData.responseData.translatedText;
+            }
+            return chunk;
+          } catch (error) {
+            console.warn('Translation chunk failed:', error);
+            return chunk; // Return original chunk on error
+          }
+        })
+      );
+
+      return translatedChunks.join(" ");
+    } catch (error) {
+      console.error('Translation failed:', error);
+      return text; // Fallback to original text
+    }
+  };
+
+  // Default to Translated (Markdown) view if user is not logged in
+  useEffect(() => {
+    if (!isUserAuthenticated) {
+      setShowMarkdown(true);
+    }
+  }, [isUserAuthenticated]);
 
   // Detect mobile view
   useEffect(() => {
@@ -40,6 +153,25 @@ export default function ActDetails() {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Re-translate when language cookie changes
+  useEffect(() => {
+    if (showMarkdown && markdownContent) {
+      const currentLang = getCurrentLanguage();
+      if (currentLang !== 'en' && !loadingTranslation) {
+        setLoadingTranslation(true);
+        translateText(markdownContent, currentLang)
+          .then(setTranslatedMarkdown)
+          .catch(err => {
+            console.error("Translation failed:", err);
+            setTranslatedMarkdown(markdownContent);
+          })
+          .finally(() => setLoadingTranslation(false));
+      } else if (currentLang === 'en') {
+        setTranslatedMarkdown(markdownContent);
+      }
+    }
+  }, [markdownContent, showMarkdown]);
 
   useEffect(() => {
     // Get act data from location state or fetch from API
@@ -93,6 +225,45 @@ export default function ActDetails() {
       }
     }
   }, [act?.id]);
+
+  // Fetch markdown content when markdown view is selected
+  useEffect(() => {
+    if (showMarkdown && act && !markdownContent && !loadingMarkdown) {
+      const fetchMarkdown = async () => {
+        setLoadingMarkdown(true);
+        setMarkdownError("");
+        try {
+          const actId = act.id || act.act_id;
+          if (actId) {
+            let markdown;
+            
+            // Determine if central or state act
+            const isStateAct = act.location || act.state || 
+                               (act.source && act.source.toLowerCase().includes('state'));
+            
+            if (isStateAct) {
+              markdown = await apiService.getStateActByIdMarkdown(actId);
+            } else {
+              markdown = await apiService.getCentralActByIdMarkdown(actId);
+            }
+            
+            setMarkdownContent(markdown);
+            setTranslatedMarkdown(""); // Reset translated content
+          } else {
+            setMarkdownError("No act ID available");
+          }
+        } catch (error) {
+          console.error("Error fetching markdown:", error);
+          setMarkdownError(error.message || "Failed to load Translated content");
+        } finally {
+          setLoadingMarkdown(false);
+        }
+      };
+      
+      fetchMarkdown();
+    }
+  }, [showMarkdown, act, markdownContent, loadingMarkdown]);
+
 
   // Handle window resize to keep popup within bounds
   useEffect(() => {
@@ -189,21 +360,21 @@ export default function ActDetails() {
     <div className="min-h-screen" style={{ backgroundColor: '#F9FAFC' }}>
       <Navbar />
       <div className="pt-16 sm:pt-20">
-      
+
       {/* Responsive Layout: Stacked on mobile, side-by-side on desktop */}
-      <div className="flex-1 p-2 sm:p-3 md:p-4 lg:p-6" style={{ minHeight: 'calc(100vh - 80px)' }}>
-        <div className="max-w-7xl mx-auto h-full">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 sm:gap-3 md:gap-4 lg:gap-6 h-full">
-            {/* Act Details - Left Side */}
-            <div className="lg:col-span-1 order-1 lg:order-1 pt-1">
-              <div className="bg-white rounded-lg sm:rounded-xl shadow-lg border border-gray-200 p-2 sm:p-2 md:p-6 h-auto lg:h-full max-h-[10S0vh] sm:max-h-[60vh] md:max-h-96 lg:max-h-none overflow-hidden">
+      <div className="flex-1 p-2 sm:p-3 md:p-4 lg:p-6" style={{ minHeight: 'calc(100vh - 80px)', height: isMobile ? 'auto' : 'calc(100vh - 80px)', overflow: isMobile ? 'visible' : 'hidden' }}>
+        <div className="max-w-7xl mx-auto" style={{ height: isMobile ? 'auto' : '100%' }}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 sm:gap-3 md:gap-4 lg:gap-6" style={{ height: isMobile ? 'auto' : '100%' }}>
+            {/* Details - Left Side - Static */}
+            <div className="lg:col-span-1 order-1 lg:order-1 pt-3" style={{ height: isMobile ? 'auto' : '100%', overflow: 'hidden' }}>
+              <div className="bg-white rounded-lg sm:rounded-xl shadow-lg border border-gray-200 p-2 sm:p-2 md:p-6 overflow-y-auto" style={{ height: isMobile ? 'auto' : '100%', position: isMobile ? 'relative' : 'sticky', top: 0 }}>
                 <div className="mb-3 sm:mb-4 md:mb-6">
-                  <div className="flex items-center justify-between gap-2 sm:gap-0 mb-2 sm:mb-3">
+                  <div className="flex flex-col grid grid-cols-2  sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 mb-2 sm:mb-3">
                     <h3 className="text-base sm:text-lg md:text-xl font-bold" style={{ color: '#1E65AD', fontFamily: 'Helvetica Hebrew Bold, sans-serif' }}>
                       Act Details
                     </h3>
                     {act && act.id && (
-                      <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="flex items-center gap-2 justify-end self-start sm:self-auto relative">
                         <button
                           onClick={() => {
                             const url = window.location.href;
@@ -228,6 +399,249 @@ export default function ActDetails() {
                         >
                           <Share2 className="h-4 w-4 sm:h-5 sm:w-5" style={{ color: '#FFFFFF' }} />
                         </button>
+                        
+                        {/* Download Button with Dropdown */}
+                        <div className="relative">
+                          <button
+                            onClick={() => {
+                              if (!isUserAuthenticated) {
+                                navigate('/login');
+                                return;
+                              }
+                              setShowDownloadDropdown(!showDownloadDropdown);
+                            }}
+                            className="p-1.5 sm:p-2 rounded-lg transition-all duration-200 flex items-center justify-center shadow-sm hover:shadow-md"
+                            style={{ 
+                              backgroundColor: '#1E65AD',
+                              color: '#FFFFFF'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.target.style.backgroundColor = '#1a5a9a';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.target.style.backgroundColor = '#1E65AD';
+                            }}
+                            title="Download"
+                          >
+                            <Download className="h-4 w-4 sm:h-5 sm:w-5" style={{ color: '#FFFFFF' }} />
+                          </button>
+                          
+                          {/* Download Dropdown Menu */}
+                          {showDownloadDropdown && (
+                            <>
+                              <div 
+                                className="fixed inset-0 z-40" 
+                                onClick={() => setShowDownloadDropdown(false)}
+                              ></div>
+                              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
+                                <button
+                                  onClick={() => {
+                                    if (!isUserAuthenticated) {
+                                      navigate('/login');
+                                      setShowDownloadDropdown(false);
+                                      return;
+                                    }
+                                    if (act.pdf_url) {
+                                      const link = document.createElement('a');
+                                      link.href = act.pdf_url;
+                                      link.download = `${act?.short_title || act?.long_title || 'act'}_original.pdf`.replace(/[^a-z0-9]/gi, '_');
+                                      link.target = '_blank';
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      document.body.removeChild(link);
+                                    } else {
+                                      alert('Original PDF not available');
+                                    }
+                                    setShowDownloadDropdown(false);
+                                  }}
+                                  className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors flex items-center gap-2 text-sm"
+                                  style={{ fontFamily: 'Roboto, sans-serif', color: '#1a1a1a' }}
+                                >
+                                  <FileText className="h-4 w-4" style={{ color: '#1E65AD' }} />
+                                  <span>Original PDF</span>
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      if (!isUserAuthenticated) {
+                                        navigate('/login');
+                                        setShowDownloadDropdown(false);
+                                        return;
+                                      }
+                                      
+                                      // Get current selected language
+                                      const currentLang = getCurrentLanguage();
+                                      const langName = getLanguageName(currentLang);
+                                      
+                                      // Get act ID
+                                      const actId = act?.id || act?.act_id;
+                                      
+                                      if (!actId) {
+                                        alert('Act ID not available');
+                                        setShowDownloadDropdown(false);
+                                        return;
+                                      }
+
+                                      // Show loading message
+                                      const loadingMsg = document.createElement('div');
+                                      loadingMsg.id = 'pdf-translation-loading';
+                                      loadingMsg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#1E65AD;color:white;padding:20px 30px;border-radius:8px;z-index:10000;font-family:Roboto,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.3);';
+                                      loadingMsg.textContent = currentLang !== 'en' 
+                                        ? `Generating PDF in ${langName}... Please wait.`
+                                        : 'Generating PDF... Please wait.';
+                                      document.body.appendChild(loadingMsg);
+
+                                      // Fetch markdown content from backend
+                                      let markdownContent = '';
+                                      try {
+                                        // Determine if central or state act
+                                        const isStateAct = act.location || act.state || 
+                                                           (act.source && act.source.toLowerCase().includes('state'));
+                                        
+                                        if (isStateAct) {
+                                          markdownContent = await apiService.getStateActByIdMarkdown(actId);
+                                        } else {
+                                          markdownContent = await apiService.getCentralActByIdMarkdown(actId);
+                                        }
+                                        
+                                        if (!markdownContent || markdownContent.trim() === '') {
+                                          throw new Error('Markdown content is empty');
+                                        }
+                                      } catch (markdownError) {
+                                        if (loadingMsg && loadingMsg.parentNode) {
+                                          document.body.removeChild(loadingMsg);
+                                        }
+                                        throw new Error('Failed to fetch markdown content: ' + markdownError.message);
+                                      }
+
+                                      // Translate markdown if needed
+                                      let finalMarkdown = markdownContent;
+                                      if (currentLang !== 'en') {
+                                        try {
+                                          const cleanMarkdown = markdownContent
+                                            .replace(/#{1,6}\s+/g, '')
+                                            .replace(/\*\*\*(.*?)\*\*\*/g, '$1')
+                                            .replace(/\*\*(.*?)\*\*/g, '$1')
+                                            .replace(/\*(.*?)\*/g, '$1')
+                                            .replace(/`(.*?)`/g, '$1')
+                                            .replace(/```[\s\S]*?```/g, '')
+                                            .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+                                            .trim();
+                                          
+                                          finalMarkdown = await translateText(cleanMarkdown, currentLang);
+                                        } catch (translateError) {
+                                          console.warn('Translation failed, using original markdown:', translateError);
+                                          finalMarkdown = markdownContent;
+                                        }
+                                      }
+
+                                      // Convert markdown to plain text
+                                      let plainText = finalMarkdown
+                                        .replace(/#{1,6}\s+/g, '')
+                                        .replace(/\*\*\*(.*?)\*\*\*/g, '$1')
+                                        .replace(/\*\*(.*?)\*\*/g, '$1')
+                                        .replace(/\*(.*?)\*/g, '$1')
+                                        .replace(/`(.*?)`/g, '$1')
+                                        .replace(/```[\s\S]*?```/g, '')
+                                        .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+                                        .replace(/!\[([^\]]*)\]\([^\)]+\)/g, '')
+                                        .replace(/\n{3,}/g, '\n\n')
+                                        .trim();
+
+                                      // Create PDF using jsPDF
+                                      const pdf = new jsPDF('p', 'mm', 'a4');
+                                      const pageWidth = pdf.internal.pageSize.getWidth();
+                                      const pageHeight = pdf.internal.pageSize.getHeight();
+                                      const margin = 10;
+                                      const lineHeight = 5;
+                                      const fontSize = 9;
+                                      
+                                      pdf.setFontSize(fontSize);
+                                      pdf.setFont('helvetica', 'normal');
+                                      
+                                      const maxWidth = pageWidth - (margin * 2);
+                                      let y = margin;
+                                      const lines = plainText.split('\n');
+                                      
+                                      lines.forEach((line) => {
+                                        if (!line.trim()) {
+                                          y += lineHeight * 0.5;
+                                          return;
+                                        }
+                                        
+                                        const words = line.split(' ');
+                                        let currentLine = '';
+                                        
+                                        words.forEach((word) => {
+                                          const testLine = currentLine ? `${currentLine} ${word}` : word;
+                                          const textWidth = pdf.getTextWidth(testLine);
+                                          
+                                          if (textWidth > maxWidth && currentLine) {
+                                            if (y > pageHeight - margin - lineHeight) {
+                                              pdf.addPage();
+                                              y = margin;
+                                            }
+                                            pdf.text(currentLine, margin, y);
+                                            y += lineHeight;
+                                            currentLine = word;
+                                          } else {
+                                            currentLine = testLine;
+                                          }
+                                        });
+                                        
+                                        if (currentLine) {
+                                          if (y > pageHeight - margin - lineHeight) {
+                                            pdf.addPage();
+                                            y = margin;
+                                          }
+                                          pdf.text(currentLine, margin, y);
+                                          y += lineHeight;
+                                        }
+                                      });
+
+                                      if (loadingMsg && loadingMsg.parentNode) {
+                                        document.body.removeChild(loadingMsg);
+                                      }
+
+                                      const baseFileName = (act?.short_title || act?.long_title || 'act').replace(/[^a-z0-9]/gi, '_');
+                                      const fileName = currentLang !== 'en' 
+                                        ? `${baseFileName}_${langName}.pdf`
+                                        : `${baseFileName}_translated.pdf`;
+                                      
+                                      pdf.save(fileName);
+                                      console.log('PDF downloaded successfully:', fileName);
+                                      
+                                    } catch (error) {
+                                      console.error('Error generating PDF:', error);
+                                      
+                                      const loadingMsg = document.getElementById('pdf-translation-loading');
+                                      if (loadingMsg && loadingMsg.parentNode) {
+                                        document.body.removeChild(loadingMsg);
+                                      }
+                                      
+                                      alert(error.message || 'Failed to generate PDF. Please try again.');
+                                    }
+                                    setShowDownloadDropdown(false);
+                                  }}
+                                  className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors flex items-center gap-2 text-sm border-t border-gray-200"
+                                  style={{ fontFamily: 'Roboto, sans-serif', color: '#1a1a1a' }}
+                                >
+                                  <FileText className="h-4 w-4" style={{ color: '#CF9B63' }} />
+                                  <span>
+                                    {(() => {
+                                      const currentLang = getCurrentLanguage();
+                                      const langName = getLanguageName(currentLang);
+                                      return currentLang !== 'en' 
+                                        ? `Download PDF (${langName})`
+                                        : 'Translated PDF';
+                                    })()}
+                                  </span>
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                        
                         <BookmarkButton
                           item={act}
                           type={act.location ? "state_act" : "central_act"}
@@ -239,16 +653,16 @@ export default function ActDetails() {
                       </div>
                     )}
                   </div>
-                  <div className="w-12 h-1 bg-gradient-to-r mt-2 sm:mt-3" style={{ background: 'linear-gradient(90deg, #1E65AD 0%, #CF9B63 100%)' }}></div>
+                  <div className="w-10 sm:w-12 h-0.5 sm:h-1 bg-gradient-to-r" style={{ background: 'linear-gradient(90deg, #1E65AD 0%, #CF9B63 100%)' }}></div>
                 </div>
 
-                <div className="space-y-3 sm:space-y-4 md:space-y-6 mt-3 sm:mt-4 md:mt-6">
-                  {/* Act Title */}
+                <div className="space-y-2.5 sm:space-y-3 md:space-y-4 lg:space-y-6">
+                  {/* Title */}
                   <div>
-                    <h4 className="text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                    <h4 className="text-xs sm:text-sm font-semibold text-gray-700 mb-1.5 sm:mb-2" style={{ fontFamily: 'Roboto, sans-serif' }}>
                       Act Title
                     </h4>
-                    <p className="text-sm text-gray-600 leading-relaxed" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                    <p className="text-xs sm:text-sm text-gray-600 leading-relaxed break-words" style={{ fontFamily: 'Roboto, sans-serif' }}>
                       {act.short_title || act.long_title}
                     </p>
                   </div>
@@ -256,10 +670,10 @@ export default function ActDetails() {
                   {/* Long Title/Description */}
                   {act.long_title && act.long_title !== act.short_title && (
                     <div>
-                      <h4 className="text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      <h4 className="text-xs sm:text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Roboto, sans-serif' }}>
                         Description
                       </h4>
-                      <p className="text-sm text-gray-600 leading-relaxed" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      <p className="text-xs sm:text-sm text-gray-600 leading-relaxed" style={{ fontFamily: 'Roboto, sans-serif' }}>
                         {act.long_title}
                       </p>
                     </div>
@@ -268,10 +682,10 @@ export default function ActDetails() {
                   {/* Ministry */}
                   {act.ministry && (
                     <div>
-                      <h4 className="text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      <h4 className="text-xs sm:text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Roboto, sans-serif' }}>
                         Ministry
                       </h4>
-                      <p className="text-sm text-gray-600" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      <p className="text-xs sm:text-sm text-gray-600" style={{ fontFamily: 'Roboto, sans-serif' }}>
                         {act.ministry}
                       </p>
                     </div>
@@ -280,10 +694,10 @@ export default function ActDetails() {
                   {/* Department */}
                   {act.department && (
                     <div>
-                      <h4 className="text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      <h4 className="text-xs sm:text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Roboto, sans-serif' }}>
                         Department
                       </h4>
-                      <p className="text-sm text-gray-600" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      <p className="text-xs sm:text-sm text-gray-600" style={{ fontFamily: 'Roboto, sans-serif' }}>
                         {act.department}
                       </p>
                     </div>
@@ -292,10 +706,10 @@ export default function ActDetails() {
                   {/* Location for State Acts */}
                   {act.location && (
                     <div>
-                      <h4 className="text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      <h4 className="text-xs sm:text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Roboto, sans-serif' }}>
                         Location
                       </h4>
-                      <p className="text-sm text-gray-600" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      <p className="text-xs sm:text-sm text-gray-600" style={{ fontFamily: 'Roboto, sans-serif' }}>
                         {act.location}
                       </p>
                     </div>
@@ -304,10 +718,10 @@ export default function ActDetails() {
                   {/* Year */}
                   {act.year && (
                     <div>
-                      <h4 className="text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      <h4 className="text-xs sm:text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Roboto, sans-serif' }}>
                         Year
                       </h4>
-                      <p className="text-sm text-gray-600" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      <p className="text-xs sm:text-sm text-gray-600" style={{ fontFamily: 'Roboto, sans-serif' }}>
                         {act.year}
                       </p>
                     </div>
@@ -316,10 +730,10 @@ export default function ActDetails() {
                   {/* Enactment Date */}
                   {act.enactment_date && (
                     <div>
-                      <h4 className="text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      <h4 className="text-xs sm:text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Roboto, sans-serif' }}>
                         Enactment Date
                       </h4>
-                      <p className="text-sm text-gray-600" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      <p className="text-xs sm:text-sm text-gray-600" style={{ fontFamily: 'Roboto, sans-serif' }}>
                         {new Date(act.enactment_date).toLocaleDateString()}
                       </p>
                     </div>
@@ -328,10 +742,10 @@ export default function ActDetails() {
                   {/* Enforcement Date */}
                   {act.enforcement_date && (
                     <div>
-                      <h4 className="text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      <h4 className="text-xs sm:text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Roboto, sans-serif' }}>
                         Enforcement Date
                       </h4>
-                      <p className="text-sm text-gray-600" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      <p className="text-xs sm:text-sm text-gray-600" style={{ fontFamily: 'Roboto, sans-serif' }}>
                         {new Date(act.enforcement_date).toLocaleDateString()}
                       </p>
                     </div>
@@ -340,10 +754,10 @@ export default function ActDetails() {
                   {/* Act ID */}
                   {act.act_id && (
                     <div>
-                      <h4 className="text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      <h4 className="text-xs sm:text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Roboto, sans-serif' }}>
                         Act ID
                       </h4>
-                      <p className="text-sm text-gray-600 font-mono" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      <p className="text-xs sm:text-sm text-gray-600 font-mono" style={{ fontFamily: 'Roboto, sans-serif' }}>
                         {act.act_id}
                       </p>
                     </div>
@@ -352,10 +766,10 @@ export default function ActDetails() {
                   {/* Source */}
                   {act.source && (
                     <div>
-                      <h4 className="text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      <h4 className="text-xs sm:text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Roboto, sans-serif' }}>
                         Source
                       </h4>
-                      <p className="text-sm text-gray-600 font-mono" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      <p className="text-xs sm:text-sm text-gray-600 font-mono" style={{ fontFamily: 'Roboto, sans-serif' }}>
                         {act.source}
                       </p>
                     </div>
@@ -364,12 +778,12 @@ export default function ActDetails() {
                   {/* Type */}
                   {act.type && (
                     <div>
-                      <h4 className="text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      <h4 className="text-xs sm:text-sm font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Roboto, sans-serif' }}>
                         Type
                       </h4>
-                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium" 
+                      <div className="inline-flex items-center gap-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium" 
                            style={{ backgroundColor: '#E3F2FD', color: '#1E65AD', fontFamily: 'Roboto, sans-serif' }}>
-                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#1E65AD' }}></div>
+                        <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full" style={{ backgroundColor: '#1E65AD' }}></div>
                         {act.type}
                       </div>
                     </div>
@@ -377,11 +791,11 @@ export default function ActDetails() {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="mt-4 sm:mt-6 md:mt-8 pt-4 sm:pt-5 md:pt-6 border-t border-gray-200">
-                  <div className="space-y-2 sm:space-y-3">
+                <div className="mt-3 sm:mt-4 md:mt-6 lg:mt-8 pt-2.5 sm:pt-3 md:pt-4 lg:pt-6 border-t border-gray-200">
+                  <div className="space-y-2">
                     <button
                       onClick={goBack}
-                      className="w-full px-3 sm:px-4 py-2 sm:py-2.5 md:py-3 border-2 border-gray-300 text-gray-700 rounded-lg sm:rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 font-medium text-xs sm:text-sm md:text-base shadow-sm hover:shadow-md flex items-center justify-center gap-1.5 sm:gap-2"
+                      className="w-full px-3 sm:px-4 py-2 sm:py-2.5 md:py-3 border-2 border-gray-300 text-gray-700 rounded-lg sm:rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 font-medium shadow-sm hover:shadow-md flex items-center justify-center gap-2 text-xs sm:text-sm"
                       style={{ fontFamily: 'Roboto, sans-serif' }}
                     >
                       <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -394,51 +808,497 @@ export default function ActDetails() {
               </div>
             </div>
 
-            {/* PDF Viewer - Right Side */}
-            <div className="lg:col-span-2 order-2 lg:order-2 hidden lg:block">
-              {/* Desktop View: Show PDF Viewer */}
-              <div className="bg-white rounded-lg sm:rounded-xl shadow-lg border border-gray-200 overflow-hidden h-[calc(100vh-280px)] sm:h-[calc(100vh-320px)] md:h-[500px] lg:h-full min-h-[400px] sm:min-h-[450px] md:min-h-[500px] flex flex-col">
+            {/* PDF Viewer - Right Side - Scrollable */}
+            <div className="lg:col-span-2 order-2 lg:order-2" style={{ height: isMobile ? 'auto' : '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              {/* PDF Viewer - Show on all screen sizes */}
+              <div className="bg-white rounded-lg sm:rounded-xl shadow-lg border border-gray-200 overflow-hidden flex flex-col" style={{ height: isMobile ? 'auto' : '100%' }}>
                 {/* PDF Toolbar - Search, Summary, Notes */}
-                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 md:gap-3 p-2 sm:p-2.5 md:p-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-                  {/* Search Bar */}
-                  <div className="relative flex-1 min-w-[120px] sm:min-w-[200px]">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-1.5 md:gap-3 p-1.5 sm:p-2 md:p-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+                  {/* Search Bar - First Row on Mobile */}
+                  <div className="relative w-full sm:flex-1 sm:min-w-[150px] md:min-w-0">
                     <img 
                       src="/uit3.GIF" 
                       alt="Search" 
-                      className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 object-contain pointer-events-none z-10"
+                      className="absolute left-1.5 sm:left-2.5 md:left-3 top-1/2 transform -translate-y-1/2 h-6 w-10 sm:h-4 sm:w-4 md:h-5 md:w-5 object-contain pointer-events-none z-10"
                     />
+                    
                     <input
                       type="text"
-                      placeholder="Search With Kiki AI..."
+                      placeholder="Search..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-8 sm:pl-10 pr-2 sm:pr-3 py-1.5 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-xs sm:text-sm"
+                      className="w-full pl-6 sm:pl-9 md:pl-10 pr-1.5 sm:pr-3 py-1 sm:py-1.5 md:py-2.5 border border-gray-300 rounded-md sm:rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-[10px] sm:text-xs md:text-base"
                       style={{ fontFamily: 'Roboto, sans-serif' }}
                       onKeyPress={(e) => {
                         if (e.key === 'Enter' && searchQuery.trim()) {
+                          // Trigger PDF search functionality
                           console.log('Searching for:', searchQuery);
+                          // You can implement PDF search logic here
                         }
                       }}
                     />
                   </div>
                   
-                  {/* Action Buttons Container */}
-                  <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-                    {/* Summary Button */}
+                  {/* Action Buttons Container - Second Row on Mobile */}
+                  <div className="flex items-center gap-0.5 sm:gap-1 md:gap-2.5 flex-shrink-0 w-full sm:w-auto">
+                    {/* Summary Button with Animation - Show in both Original and Translated views */}
+                    <>
+                      <style>{`
+                          .summary-animated-button {
+                            --h-button: 36px;
+                            --w-button: 90px;
+                            --round: 0.75rem;
+                            cursor: pointer;
+                            position: relative;
+                            display: inline-flex;
+                            align-items: center;
+                            justify-content: center;
+                            overflow: hidden;
+                            transition: all 0.25s ease;
+                            background: radial-gradient(
+                                65.28% 65.28% at 50% 100%,
+                                rgba(207, 155, 99, 0.8) 0%,
+                                rgba(207, 155, 99, 0) 100%
+                              ),
+                              linear-gradient(135deg, #1E65AD 0%, #CF9B63 100%);
+                            border-radius: var(--round);
+                            border: none;
+                            outline: none;
+                            padding: 6px 10px;
+                            font-family: 'Roboto', sans-serif;
+                            min-height: 32px;
+                          }
+                          @media (min-width: 640px) {
+                            .summary-animated-button {
+                              padding: 8px 14px;
+                              min-height: 36px;
+                            }
+                          }
+                          .summary-animated-button::before,
+                          .summary-animated-button::after {
+                            content: "";
+                            position: absolute;
+                            inset: var(--space);
+                            transition: all 0.5s ease-in-out;
+                            border-radius: calc(var(--round) - var(--space));
+                            z-index: 0;
+                          }
+                          .summary-animated-button::before {
+                            --space: 1px;
+                            background: linear-gradient(
+                              177.95deg,
+                              rgba(255, 255, 255, 0.19) 0%,
+                              rgba(255, 255, 255, 0) 100%
+                            );
+                          }
+                          .summary-animated-button::after {
+                            --space: 2px;
+                            background: radial-gradient(
+                                65.28% 65.28% at 50% 100%,
+                                rgba(207, 155, 99, 0.8) 0%,
+                                rgba(207, 155, 99, 0) 100%
+                              ),
+                              linear-gradient(135deg, #1E65AD 0%, #CF9B63 100%);
+                          }
+                          .summary-animated-button:active {
+                            transform: scale(0.95);
+                          }
+                          .summary-points-wrapper {
+                            overflow: hidden;
+                            width: 100%;
+                            height: 100%;
+                            pointer-events: none;
+                            position: absolute;
+                            z-index: 1;
+                          }
+                          .summary-points-wrapper .summary-point {
+                            bottom: -10px;
+                            position: absolute;
+                            animation: floating-points infinite ease-in-out;
+                            pointer-events: none;
+                            width: 2px;
+                            height: 2px;
+                            background-color: #fff;
+                            border-radius: 9999px;
+                          }
+                          @keyframes floating-points {
+                            0% {
+                              transform: translateY(0);
+                            }
+                            85% {
+                              opacity: 0;
+                            }
+                            100% {
+                              transform: translateY(-55px);
+                              opacity: 0;
+                            }
+                          }
+                          .summary-points-wrapper .summary-point:nth-child(1) {
+                            left: 10%;
+                            opacity: 1;
+                            animation-duration: 2.35s;
+                            animation-delay: 0.2s;
+                          }
+                          .summary-points-wrapper .summary-point:nth-child(2) {
+                            left: 30%;
+                            opacity: 0.7;
+                            animation-duration: 2.5s;
+                            animation-delay: 0.5s;
+                          }
+                          .summary-points-wrapper .summary-point:nth-child(3) {
+                            left: 25%;
+                            opacity: 0.8;
+                            animation-duration: 2.2s;
+                            animation-delay: 0.1s;
+                          }
+                          .summary-points-wrapper .summary-point:nth-child(4) {
+                            left: 44%;
+                            opacity: 0.6;
+                            animation-duration: 2.05s;
+                          }
+                          .summary-points-wrapper .summary-point:nth-child(5) {
+                            left: 50%;
+                            opacity: 1;
+                            animation-duration: 1.9s;
+                          }
+                          .summary-points-wrapper .summary-point:nth-child(6) {
+                            left: 75%;
+                            opacity: 0.5;
+                            animation-duration: 1.5s;
+                            animation-delay: 1.5s;
+                          }
+                          .summary-points-wrapper .summary-point:nth-child(7) {
+                            left: 88%;
+                            opacity: 0.9;
+                            animation-duration: 2.2s;
+                            animation-delay: 0.2s;
+                          }
+                          .summary-points-wrapper .summary-point:nth-child(8) {
+                            left: 58%;
+                            opacity: 0.8;
+                            animation-duration: 2.25s;
+                            animation-delay: 0.2s;
+                          }
+                          .summary-points-wrapper .summary-point:nth-child(9) {
+                            left: 98%;
+                            opacity: 0.6;
+                            animation-duration: 2.6s;
+                            animation-delay: 0.1s;
+                          }
+                          .summary-points-wrapper .summary-point:nth-child(10) {
+                            left: 65%;
+                            opacity: 1;
+                            animation-duration: 2.5s;
+                            animation-delay: 0.2s;
+                          }
+                          .summary-inner {
+                            z-index: 2;
+                            gap: 6px;
+                            position: relative;
+                            width: 100%;
+                            color: white;
+                            display: inline-flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 10px;
+                            font-weight: 500;
+                            line-height: 1.4;
+                            transition: color 0.2s ease-in-out;
+                            font-family: 'Roboto', sans-serif;
+                          }
+                          @media (min-width: 640px) {
+                            .summary-inner {
+                              font-size: 14px;
+                            }
+                          }
+                          .summary-inner svg.summary-icon {
+                            width: 12px;
+                            height: 12px;
+                            transition: fill 0.1s linear;
+                          }
+                          @media (min-width: 640px) {
+                            .summary-inner svg.summary-icon {
+                              width: 16px;
+                              height: 16px;
+                            }
+                          }
+                          .summary-animated-button:focus svg.summary-icon {
+                            fill: white;
+                          }
+                          .summary-animated-button:hover svg.summary-icon {
+                            fill: transparent;
+                            animation:
+                              dasharray 1s linear forwards,
+                              filled 0.1s linear forwards 0.95s;
+                          }
+                          @keyframes dasharray {
+                            from {
+                              stroke-dasharray: 0 0 0 0;
+                            }
+                            to {
+                              stroke-dasharray: 68 68 0 0;
+                            }
+                          }
+                          @keyframes filled {
+                            to {
+                              fill: white;
+                            }
+                          }
+                        `}</style>
                     <button
+                          type="button"
+                          className="summary-animated-button flex-1 sm:flex-none"
                       onClick={() => {
+                            if (!isUserAuthenticated) {
+                              navigate('/login');
+                              return;
+                            }
+                            // Open summary popup
                         setSummaryPopupOpen(true);
                       }}
-                      className="flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 md:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-medium text-xs sm:text-sm shadow-sm hover:shadow-md whitespace-nowrap"
-                      style={{ fontFamily: 'Roboto, sans-serif' }}
                       title="View Summary"
                     >
-                      <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                      <span className="hidden sm:inline">Summary</span>
+                          <div className="summary-points-wrapper">
+                            <i className="summary-point"></i>
+                            <i className="summary-point"></i>
+                            <i className="summary-point"></i>
+                            <i className="summary-point"></i>
+                            <i className="summary-point"></i>
+                            <i className="summary-point"></i>
+                            <i className="summary-point"></i>
+                            <i className="summary-point"></i>
+                            <i className="summary-point"></i>
+                            <i className="summary-point"></i>
+                          </div>
+                          <span className="summary-inner">
+                            <svg
+                              className="summary-icon"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                              xmlns="http://www.w3.org/2000/svg"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2.5"
+                            >
+                              <polyline points="13.18 1.37 13.18 9.64 21.45 9.64 10.82 22.63 10.82 14.36 2.55 14.36 13.18 1.37"></polyline>
+                            </svg>
+                            <span className="text-[10px] sm:text-xs md:text-base">Summary</span>
+                          </span>
                     </button>
+                    </>
                     
-                    {/* Notes Button */}
+                    {/* Notes Button - Fake when not logged in, Real when logged in */}
+                    <style>{`
+                      .notes-animated-button {
+                        --h-button: 36px;
+                        --w-button: 90px;
+                        --round: 0.75rem;
+                        cursor: pointer;
+                        position: relative;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        overflow: visible;
+                        transition: all 0.25s ease;
+                        background: radial-gradient(
+                            65.28% 65.28% at 50% 100%,
+                            rgba(207, 155, 99, 0.8) 0%,
+                            rgba(207, 155, 99, 0) 100%
+                          ),
+                          linear-gradient(135deg, #1E65AD 0%, #CF9B63 100%);
+                        border-radius: var(--round);
+                        border: none;
+                        outline: none;
+                        padding: 6px 10px;
+                        font-family: 'Roboto', sans-serif;
+                        min-height: 32px;
+                      }
+                      @media (min-width: 640px) {
+                        .notes-animated-button {
+                          padding: 8px 14px;
+                          min-height: 36px;
+                        }
+                      }
+                      .notes-animated-button .notes-points-wrapper {
+                        overflow: hidden;
+                      }
+                      .notes-animated-button::before,
+                      .notes-animated-button::after {
+                        content: "";
+                        position: absolute;
+                        inset: var(--space);
+                        transition: all 0.5s ease-in-out;
+                        border-radius: calc(var(--round) - var(--space));
+                        z-index: 0;
+                      }
+                      .notes-animated-button::before {
+                        --space: 1px;
+                        background: linear-gradient(
+                          177.95deg,
+                          rgba(255, 255, 255, 0.19) 0%,
+                          rgba(255, 255, 255, 0) 100%
+                        );
+                      }
+                      .notes-animated-button::after {
+                        --space: 2px;
+                        background: radial-gradient(
+                            65.28% 65.28% at 50% 100%,
+                            rgba(207, 155, 99, 0.8) 0%,
+                            rgba(207, 155, 99, 0) 100%
+                          ),
+                          linear-gradient(135deg, #1E65AD 0%, #CF9B63 100%);
+                      }
+                      .notes-animated-button:active {
+                        transform: scale(0.95);
+                      }
+                      .notes-points-wrapper {
+                        overflow: hidden;
+                        width: 100%;
+                        height: 100%;
+                        pointer-events: none;
+                        position: absolute;
+                        z-index: 1;
+                      }
+                      .notes-points-wrapper .notes-point {
+                        bottom: -10px;
+                        position: absolute;
+                        animation: floating-points-notes infinite ease-in-out;
+                        pointer-events: none;
+                        width: 2px;
+                        height: 2px;
+                        background-color: #fff;
+                        border-radius: 9999px;
+                      }
+                      @keyframes floating-points-notes {
+                        0% {
+                          transform: translateY(0);
+                        }
+                        85% {
+                          opacity: 0;
+                        }
+                        100% {
+                          transform: translateY(-55px);
+                          opacity: 0;
+                        }
+                      }
+                      .notes-points-wrapper .notes-point:nth-child(1) {
+                        left: 10%;
+                        opacity: 1;
+                        animation-duration: 2.35s;
+                        animation-delay: 0.2s;
+                      }
+                      .notes-points-wrapper .notes-point:nth-child(2) {
+                        left: 30%;
+                        opacity: 0.7;
+                        animation-duration: 2.5s;
+                        animation-delay: 0.5s;
+                      }
+                      .notes-points-wrapper .notes-point:nth-child(3) {
+                        left: 25%;
+                        opacity: 0.8;
+                        animation-duration: 2.2s;
+                        animation-delay: 0.1s;
+                      }
+                      .notes-points-wrapper .notes-point:nth-child(4) {
+                        left: 44%;
+                        opacity: 0.6;
+                        animation-duration: 2.05s;
+                      }
+                      .notes-points-wrapper .notes-point:nth-child(5) {
+                        left: 50%;
+                        opacity: 1;
+                        animation-duration: 1.9s;
+                      }
+                      .notes-points-wrapper .notes-point:nth-child(6) {
+                        left: 75%;
+                        opacity: 0.5;
+                        animation-duration: 1.5s;
+                        animation-delay: 1.5s;
+                      }
+                      .notes-points-wrapper .notes-point:nth-child(7) {
+                        left: 88%;
+                        opacity: 0.9;
+                        animation-duration: 2.2s;
+                        animation-delay: 0.2s;
+                      }
+                      .notes-points-wrapper .notes-point:nth-child(8) {
+                        left: 58%;
+                        opacity: 0.8;
+                        animation-duration: 2.25s;
+                        animation-delay: 0.2s;
+                      }
+                      .notes-points-wrapper .notes-point:nth-child(9) {
+                        left: 98%;
+                        opacity: 0.6;
+                        animation-duration: 2.6s;
+                        animation-delay: 0.1s;
+                      }
+                      .notes-points-wrapper .notes-point:nth-child(10) {
+                        left: 65%;
+                        opacity: 1;
+                        animation-duration: 2.5s;
+                        animation-delay: 0.2s;
+                      }
+                      .notes-inner {
+                        z-index: 2;
+                        gap: 6px;
+                        position: relative;
+                        width: 100%;
+                        color: white;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 10px;
+                        font-weight: 500;
+                        line-height: 1.4;
+                        transition: color 0.2s ease-in-out;
+                        font-family: 'Roboto', sans-serif;
+                      }
+                      @media (min-width: 640px) {
+                        .notes-inner {
+                          font-size: 14px;
+                        }
+                      }
+                      .notes-inner svg.notes-icon {
+                        width: 12px;
+                        height: 12px;
+                        transition: fill 0.1s linear;
+                      }
+                      @media (min-width: 640px) {
+                        .notes-inner svg.notes-icon {
+                          width: 16px;
+                          height: 16px;
+                        }
+                      }
+                      .notes-animated-button:focus svg.notes-icon {
+                        fill: white;
+                      }
+                      .notes-animated-button:hover svg.notes-icon {
+                        fill: transparent;
+                        animation:
+                          dasharray-notes 1s linear forwards,
+                          filled-notes 0.1s linear forwards 0.95s;
+                      }
+                      @keyframes dasharray-notes {
+                        from {
+                          stroke-dasharray: 0 0 0 0;
+                        }
+                        to {
+                          stroke-dasharray: 68 68 0 0;
+                        }
+                      }
+                      @keyframes filled-notes {
+                        to {
+                          fill: white;
+                        }
+                      }
+                    `}</style>
+                    {isUserAuthenticated ? (
+                      // Real Notes Button (when logged in)
                     <button
+                        type="button"
+                        className="notes-animated-button flex-1 sm:flex-none"
                       onClick={() => {
                         // Check if we have saved notes, if not initialize with default content
                         const notesKey = `notes_act_${act?.id || 'default'}`;
@@ -462,58 +1322,255 @@ export default function ActDetails() {
                         
                         setShowNotesPopup(true);
                       }}
-                      className="flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 md:px-3 py-1.5 sm:py-2 text-white rounded-lg transition-all duration-200 font-medium text-xs sm:text-sm shadow-sm hover:shadow-md whitespace-nowrap"
-                      style={{ 
-                        fontFamily: 'Roboto, sans-serif',
-                        background: 'linear-gradient(90deg, #1E65AD 0%, #CF9B63 100%)'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.target.style.background = 'linear-gradient(90deg, #1a5a9a 0%, #b88a56 100%)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.background = 'linear-gradient(90deg, #1E65AD 0%, #CF9B63 100%)';
-                      }}
                       title="Add Notes"
                     >
-                      <StickyNote className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                      <span className="hidden sm:inline">Notes</span>
+                        <div className="notes-points-wrapper">
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                        </div>
+                        <span className="notes-inner">
+                          <StickyNote className="notes-icon" style={{ width: '12px', height: '12px' }} />
+                          <span className="text-[10px] sm:text-xs md:text-base">Notes</span>
+                        </span>
                     </button>
+                    ) : (
+                      // Fake Notes Button (when not logged in - navigates to login)
+                      <button
+                        type="button"
+                        className="notes-animated-button flex-1 sm:flex-none"
+                        onClick={() => {
+                          navigate('/login');
+                        }}
+                        title="Login to Add Notes"
+                      >
+                        <div className="notes-points-wrapper">
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                        </div>
+                        <span className="notes-inner">
+                          <StickyNote className="notes-icon" style={{ width: '12px', height: '12px' }} />
+                          <span className="text-[10px] sm:text-xs md:text-base">Notes</span>
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* PDF/Markdown Toggle Button */}
+                  <div className="relative flex items-center bg-gray-100 rounded-lg sm:rounded-xl p-0.5 sm:p-1 shadow-inner flex-shrink-0 w-full sm:w-auto sm:inline-flex">
+                    {/* Sliding background indicator */}
+                    <motion.div
+                      className="absolute top-0.5 bottom-0.5 sm:top-1 sm:bottom-1 rounded-md sm:rounded-lg z-0"
+                      initial={false}
+                      animate={{
+                        left: !showMarkdown ? '2px' : 'calc(50% + 1px)',
+                        backgroundColor: !showMarkdown ? '#1E65AD' : '#CF9B63',
+                      }}
+                      transition={{ 
+                        type: "spring", 
+                        stiffness: 300, 
+                        damping: 30 
+                      }}
+                      style={{
+                        width: 'calc(50% - 2px)',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                      }}
+                    />
+                    
+                    <motion.button
+                      onClick={() => {
+                        if (!isUserAuthenticated) {
+                          navigate('/login');
+                          return;
+                        }
+                        setShowMarkdown(false);
+                      }}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className={`flex-1 sm:flex-none px-2.5 sm:px-4 md:px-5 lg:px-6 py-1 sm:py-1.5 md:py-2.5 rounded-md sm:rounded-lg font-semibold transition-all duration-300 relative z-10 text-[10px] sm:text-xs md:text-base ${
+                        !showMarkdown
+                          ? 'text-white'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                      style={{ 
+                        fontFamily: 'Roboto, sans-serif',
+                      }}
+                    >
+                      Original
+                    </motion.button>
+                    <motion.button
+                      onClick={() => {
+                        if (!isUserAuthenticated) {
+                          navigate('/login');
+                          return;
+                        }
+                        setShowMarkdown(true);
+                      }}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className={`flex-1 sm:flex-none px-2.5 sm:px-4 md:px-5 lg:px-6 py-1 sm:py-1.5 md:py-2.5 rounded-md sm:rounded-lg font-semibold transition-all duration-300 relative z-10 text-[10px] sm:text-xs md:text-base ${
+                        showMarkdown
+                          ? 'text-white'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                      style={{
+                        fontFamily: 'Roboto, sans-serif',
+                      }}
+                    >
+                      Translated
+                    </motion.button>
                   </div>
                 </div>
                 
-                {/* PDF Content */}
-                <div className="flex-1 overflow-hidden relative">
-                {act.pdf_url && act.pdf_url.trim() !== "" ? (
-                  <div className="relative h-full" style={{ minHeight: 'calc(100vh - 200px)' }}>
-                    {/* PDF Viewer - Open in new tab due to X-Frame-Options restrictions */}
-                    <div className="flex flex-col items-center justify-center h-full p-4 sm:p-8">
-                      <div className="text-center max-w-md">
-                        <div className="w-16 h-16 sm:w-24 sm:h-24 mx-auto mb-4 sm:mb-6 rounded-full bg-gradient-to-br flex items-center justify-center" 
-                             style={{ background: 'linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%)' }}>
-                          <svg className="w-8 h-8 sm:w-12 sm:h-12" style={{ color: '#1E65AD' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
+                {/* PDF/Markdown Content */}
+                <div className="flex-1 overflow-hidden relative" style={{ minHeight: 0, height: '100%' }}>
+                  {showMarkdown ? (
+                    /* Markdown View */
+                    <div 
+                      className="w-full h-full bg-white rounded-lg overflow-y-auto"
+                      style={{
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        position: 'relative'
+                      }}
+                    >
+                      {loadingMarkdown || loadingTranslation ? (
+                        <div className="flex items-center justify-center h-full">
+                          <div className="text-center">
+                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                            <p className="mt-4 text-gray-500 text-sm">
+                              {loadingMarkdown ? 'Loading content...' : 'Translating content...'}
+                            </p>
+                          </div>
                         </div>
-                        <h3 className="text-lg sm:text-2xl font-bold mb-3 sm:mb-4" style={{ color: '#1E65AD', fontFamily: 'Helvetica Hebrew Bold, sans-serif' }}>
-                          Act PDF Document
-                        </h3>
-                        <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6" style={{ fontFamily: 'Roboto, sans-serif' }}>
-                          Click the button below to view the act PDF document in a new tab. The document cannot be embedded due to security restrictions.
-                        </p>
-                        <div className="space-y-2 sm:space-y-3">
+                      ) : markdownError ? (
+                        <div className="flex items-center justify-center h-full p-4">
+                          <div className="text-center">
+                            <p className="text-red-500 text-sm mb-2">{markdownError}</p>
                           <button
-                            onClick={() => window.open(act.pdf_url, '_blank')}
-                            className="w-full px-4 sm:px-8 py-3 sm:py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-lg hover:shadow-xl flex items-center justify-center gap-2 sm:gap-3 text-sm sm:text-base"
-                            style={{ fontFamily: 'Roboto, sans-serif' }}
-                          >
-                            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                            </svg>
-                            Open PDF Document
+                              onClick={() => {
+                                setMarkdownError("");
+                                setMarkdownContent("");
+                                if (act && act.id) {
+                                  const actId = act.id || act.act_id;
+                                  const isStateAct = act.location || act.state || 
+                                                     (act.source && act.source.toLowerCase().includes('state'));
+                                  if (isStateAct) {
+                                    apiService.getStateActByIdMarkdown(actId).then(setMarkdownContent).catch(err => setMarkdownError(err.message));
+                                  } else {
+                                    apiService.getCentralActByIdMarkdown(actId).then(setMarkdownContent).catch(err => setMarkdownError(err.message));
+                                  }
+                                }
+                              }}
+                              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                            >
+                              Retry
                           </button>
                         </div>
                       </div>
+                      ) : markdownContent ? (
+                        <div 
+                          className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 markdown-scroll-container"
+                          style={{
+                            scrollbarWidth: 'thin',
+                            scrollbarColor: '#CF9B63 #f4f4f4',
+                            height: '100%',
+                            overflowY: 'scroll',
+                            position: 'relative',
+                            zIndex: 1
+                          }}
+                        >
+                          <style>
+                            {`
+                              .markdown-scroll-container::-webkit-scrollbar {
+                                width: 12px;
+                              }
+                              .markdown-scroll-container::-webkit-scrollbar-track {
+                                background: #f4f4f4;
+                                border-radius: 6px;
+                              }
+                              .markdown-scroll-container::-webkit-scrollbar-thumb {
+                                background: #CF9B63;
+                                border-radius: 6px;
+                              }
+                              .markdown-scroll-container::-webkit-scrollbar-thumb:hover {
+                                background: #b88a56;
+                              }
+                              .markdown-content {
+                                text-rendering: optimizeLegibility;
+                                -webkit-font-smoothing: antialiased;
+                                -moz-osx-font-smoothing: grayscale;
+                                font-feature-settings: "kern" 1;
+                                text-size-adjust: 100%;
+                              }
+                            `}
+                          </style>
+                          <div className="markdown-content" style={{ 
+                            fontFamily: 'Roboto, sans-serif',
+                            lineHeight: '1.9',
+                            color: '#1a1a1a',
+                            fontSize: '17px',
+                            maxWidth: '100%',
+                            padding: '0',
+                            letterSpacing: '0.01em'
+                          }}>
+                            <ReactMarkdown
+                              components={{
+                                h1: ({node, ...props}) => <h1 style={{ color: '#1E65AD', fontFamily: 'Helvetica Hebrew Bold, sans-serif', marginBottom: '1rem', marginTop: '1.5rem' }} {...props} />,
+                                h2: ({node, ...props}) => <h2 style={{ color: '#1E65AD', fontFamily: 'Helvetica Hebrew Bold, sans-serif', marginBottom: '0.75rem', marginTop: '1.25rem' }} {...props} />,
+                                h3: ({node, ...props}) => <h3 style={{ color: '#1E65AD', fontFamily: 'Helvetica Hebrew Bold, sans-serif', marginBottom: '0.5rem', marginTop: '1rem' }} {...props} />,
+                                p: ({node, ...props}) => <p style={{ marginBottom: '1rem', lineHeight: '1.6', color: '#1a1a1a' }} {...props} />,
+                                strong: ({node, ...props}) => <strong style={{ color: '#1E65AD', fontWeight: 'bold' }} {...props} />,
+                                ul: ({node, ...props}) => <ul style={{ marginBottom: '1rem', paddingLeft: '1.5rem' }} {...props} />,
+                                ol: ({node, ...props}) => <ol style={{ marginBottom: '1rem', paddingLeft: '1.5rem' }} {...props} />,
+                                li: ({node, ...props}) => <li style={{ marginBottom: '0.5rem', lineHeight: '1.6' }} {...props} />,
+                                code: ({node, ...props}) => <code style={{ backgroundColor: '#f4f4f4', padding: '0.2rem 0.4rem', borderRadius: '0.25rem', fontSize: '0.9em' }} {...props} />,
+                                blockquote: ({node, ...props}) => <blockquote style={{ borderLeft: '4px solid #1E65AD', paddingLeft: '1rem', marginLeft: 0, fontStyle: 'italic', color: '#666' }} {...props} />,
+                              }}
+                            >
+                              {(() => {
+                                const currentLang = getCurrentLanguage();
+                                if (currentLang !== 'en' && translatedMarkdown) {
+                                  return translatedMarkdown;
+                                }
+                                return markdownContent;
+                              })()}
+                            </ReactMarkdown>
                     </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center h-full">
+                          <p className="text-gray-500 text-sm">No content available</p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* PDF View */
+                    act.pdf_url && act.pdf_url.trim() !== "" ? (
+                      <div className="relative h-full w-full" style={{ minHeight: 'calc(100vh - 200px)' }}>
+                        {/* PDF Viewer - Embedded */}
+                        <iframe
+                          src={`${act.pdf_url}#toolbar=0&navpanes=0&scrollbar=1`}
+                          className="w-full h-full border-0"
+                          title="Act PDF Document"
+                          style={{ minHeight: '100%' }}
+                        />
                   </div>
                 ) : (
                   <div className="flex items-center justify-center h-96">
@@ -532,6 +1589,7 @@ export default function ActDetails() {
                       </p>
                     </div>
                   </div>
+                    )
                 )}
                 </div>
               </div>

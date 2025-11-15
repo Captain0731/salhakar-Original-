@@ -1,14 +1,26 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Navbar from "../components/landing/Navbar";
 import apiService from "../services/api";
 import BookmarkButton from "../components/BookmarkButton";
 import SummaryPopup from "../components/SummaryPopup";
+import { useAuth } from "../contexts/AuthContext";
 import { FileText, StickyNote, Share2, X } from "lucide-react";
 
 export default function MappingDetails() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isAuthenticated } = useAuth();
+  
+  // Additional check to ensure token exists - memoized to update when token changes
+  const isUserAuthenticated = useMemo(() => {
+    const token = localStorage.getItem('access_token') || 
+                  localStorage.getItem('accessToken') || 
+                  localStorage.getItem('token');
+    const hasValidToken = !!token && token !== 'null' && token !== 'undefined';
+    return isAuthenticated && hasValidToken;
+  }, [isAuthenticated]);
+  
   const [mapping, setMapping] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -336,22 +348,465 @@ export default function MappingDetails() {
                   </div>
                   
                   {/* Action Buttons Container */}
-                  <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-                    {/* Summary Button */}
+                  <div className="flex items-center gap-0.5 sm:gap-1 md:gap-2.5 flex-shrink-0 w-full sm:w-auto">
+                    {/* Summary Button with Animation - Show in both Original and Translated views */}
+                    <>
+                      <style>{`
+                          .summary-animated-button {
+                            --h-button: 36px;
+                            --w-button: 90px;
+                            --round: 0.75rem;
+                            cursor: pointer;
+                            position: relative;
+                            display: inline-flex;
+                            align-items: center;
+                            justify-content: center;
+                            overflow: hidden;
+                            transition: all 0.25s ease;
+                            background: radial-gradient(
+                                65.28% 65.28% at 50% 100%,
+                                rgba(207, 155, 99, 0.8) 0%,
+                                rgba(207, 155, 99, 0) 100%
+                              ),
+                              linear-gradient(135deg, #1E65AD 0%, #CF9B63 100%);
+                            border-radius: var(--round);
+                            border: none;
+                            outline: none;
+                            padding: 6px 10px;
+                            font-family: 'Roboto', sans-serif;
+                            min-height: 32px;
+                          }
+                          @media (min-width: 640px) {
+                            .summary-animated-button {
+                              padding: 8px 14px;
+                              min-height: 36px;
+                            }
+                          }
+                          .summary-animated-button::before,
+                          .summary-animated-button::after {
+                            content: "";
+                            position: absolute;
+                            inset: var(--space);
+                            transition: all 0.5s ease-in-out;
+                            border-radius: calc(var(--round) - var(--space));
+                            z-index: 0;
+                          }
+                          .summary-animated-button::before {
+                            --space: 1px;
+                            background: linear-gradient(
+                              177.95deg,
+                              rgba(255, 255, 255, 0.19) 0%,
+                              rgba(255, 255, 255, 0) 100%
+                            );
+                          }
+                          .summary-animated-button::after {
+                            --space: 2px;
+                            background: radial-gradient(
+                                65.28% 65.28% at 50% 100%,
+                                rgba(207, 155, 99, 0.8) 0%,
+                                rgba(207, 155, 99, 0) 100%
+                              ),
+                              linear-gradient(135deg, #1E65AD 0%, #CF9B63 100%);
+                          }
+                          .summary-animated-button:active {
+                            transform: scale(0.95);
+                          }
+                          .summary-points-wrapper {
+                            overflow: hidden;
+                            width: 100%;
+                            height: 100%;
+                            pointer-events: none;
+                            position: absolute;
+                            z-index: 1;
+                          }
+                          .summary-points-wrapper .summary-point {
+                            bottom: -10px;
+                            position: absolute;
+                            animation: floating-points infinite ease-in-out;
+                            pointer-events: none;
+                            width: 2px;
+                            height: 2px;
+                            background-color: #fff;
+                            border-radius: 9999px;
+                          }
+                          @keyframes floating-points {
+                            0% {
+                              transform: translateY(0);
+                            }
+                            85% {
+                              opacity: 0;
+                            }
+                            100% {
+                              transform: translateY(-55px);
+                              opacity: 0;
+                            }
+                          }
+                          .summary-points-wrapper .summary-point:nth-child(1) {
+                            left: 10%;
+                            opacity: 1;
+                            animation-duration: 2.35s;
+                            animation-delay: 0.2s;
+                          }
+                          .summary-points-wrapper .summary-point:nth-child(2) {
+                            left: 30%;
+                            opacity: 0.7;
+                            animation-duration: 2.5s;
+                            animation-delay: 0.5s;
+                          }
+                          .summary-points-wrapper .summary-point:nth-child(3) {
+                            left: 25%;
+                            opacity: 0.8;
+                            animation-duration: 2.2s;
+                            animation-delay: 0.1s;
+                          }
+                          .summary-points-wrapper .summary-point:nth-child(4) {
+                            left: 44%;
+                            opacity: 0.6;
+                            animation-duration: 2.05s;
+                          }
+                          .summary-points-wrapper .summary-point:nth-child(5) {
+                            left: 50%;
+                            opacity: 1;
+                            animation-duration: 1.9s;
+                          }
+                          .summary-points-wrapper .summary-point:nth-child(6) {
+                            left: 75%;
+                            opacity: 0.5;
+                            animation-duration: 1.5s;
+                            animation-delay: 1.5s;
+                          }
+                          .summary-points-wrapper .summary-point:nth-child(7) {
+                            left: 88%;
+                            opacity: 0.9;
+                            animation-duration: 2.2s;
+                            animation-delay: 0.2s;
+                          }
+                          .summary-points-wrapper .summary-point:nth-child(8) {
+                            left: 58%;
+                            opacity: 0.8;
+                            animation-duration: 2.25s;
+                            animation-delay: 0.2s;
+                          }
+                          .summary-points-wrapper .summary-point:nth-child(9) {
+                            left: 98%;
+                            opacity: 0.6;
+                            animation-duration: 2.6s;
+                            animation-delay: 0.1s;
+                          }
+                          .summary-points-wrapper .summary-point:nth-child(10) {
+                            left: 65%;
+                            opacity: 1;
+                            animation-duration: 2.5s;
+                            animation-delay: 0.2s;
+                          }
+                          .summary-inner {
+                            z-index: 2;
+                            gap: 6px;
+                            position: relative;
+                            width: 100%;
+                            color: white;
+                            display: inline-flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 10px;
+                            font-weight: 500;
+                            line-height: 1.4;
+                            transition: color 0.2s ease-in-out;
+                            font-family: 'Roboto', sans-serif;
+                          }
+                          @media (min-width: 640px) {
+                            .summary-inner {
+                              font-size: 14px;
+                            }
+                          }
+                          .summary-inner svg.summary-icon {
+                            width: 12px;
+                            height: 12px;
+                            transition: fill 0.1s linear;
+                          }
+                          @media (min-width: 640px) {
+                            .summary-inner svg.summary-icon {
+                              width: 16px;
+                              height: 16px;
+                            }
+                          }
+                          .summary-animated-button:focus svg.summary-icon {
+                            fill: white;
+                          }
+                          .summary-animated-button:hover svg.summary-icon {
+                            fill: transparent;
+                            animation:
+                              dasharray 1s linear forwards,
+                              filled 0.1s linear forwards 0.95s;
+                          }
+                          @keyframes dasharray {
+                            from {
+                              stroke-dasharray: 0 0 0 0;
+                            }
+                            to {
+                              stroke-dasharray: 68 68 0 0;
+                            }
+                          }
+                          @keyframes filled {
+                            to {
+                              fill: white;
+                            }
+                          }
+                        `}</style>
                     <button
+                          type="button"
+                          className="summary-animated-button flex-1 sm:flex-none"
                       onClick={() => {
+                            if (!isUserAuthenticated) {
+                              navigate('/login');
+                              return;
+                            }
+                            // Open summary popup
                         setSummaryPopupOpen(true);
                       }}
-                      className="flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 md:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-medium text-xs sm:text-sm shadow-sm hover:shadow-md whitespace-nowrap"
-                      style={{ fontFamily: 'Roboto, sans-serif' }}
                       title="View Summary"
                     >
-                      <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                      <span className="hidden sm:inline">Summary</span>
+                          <div className="summary-points-wrapper">
+                            <i className="summary-point"></i>
+                            <i className="summary-point"></i>
+                            <i className="summary-point"></i>
+                            <i className="summary-point"></i>
+                            <i className="summary-point"></i>
+                            <i className="summary-point"></i>
+                            <i className="summary-point"></i>
+                            <i className="summary-point"></i>
+                            <i className="summary-point"></i>
+                            <i className="summary-point"></i>
+                          </div>
+                          <span className="summary-inner">
+                            <svg
+                              className="summary-icon"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                              xmlns="http://www.w3.org/2000/svg"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2.5"
+                            >
+                              <polyline points="13.18 1.37 13.18 9.64 21.45 9.64 10.82 22.63 10.82 14.36 2.55 14.36 13.18 1.37"></polyline>
+                            </svg>
+                            <span className="text-[10px] sm:text-xs md:text-base">Summary</span>
+                          </span>
                     </button>
+                    </>
                     
-                    {/* Notes Button */}
+                    {/* Notes Button - Fake when not logged in, Real when logged in */}
+                    <style>{`
+                      .notes-animated-button {
+                        --h-button: 36px;
+                        --w-button: 90px;
+                        --round: 0.75rem;
+                        cursor: pointer;
+                        position: relative;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        overflow: visible;
+                        transition: all 0.25s ease;
+                        background: radial-gradient(
+                            65.28% 65.28% at 50% 100%,
+                            rgba(207, 155, 99, 0.8) 0%,
+                            rgba(207, 155, 99, 0) 100%
+                          ),
+                          linear-gradient(135deg, #1E65AD 0%, #CF9B63 100%);
+                        border-radius: var(--round);
+                        border: none;
+                        outline: none;
+                        padding: 6px 10px;
+                        font-family: 'Roboto', sans-serif;
+                        min-height: 32px;
+                      }
+                      @media (min-width: 640px) {
+                        .notes-animated-button {
+                          padding: 8px 14px;
+                          min-height: 36px;
+                        }
+                      }
+                      .notes-animated-button .notes-points-wrapper {
+                        overflow: hidden;
+                      }
+                      .notes-animated-button::before,
+                      .notes-animated-button::after {
+                        content: "";
+                        position: absolute;
+                        inset: var(--space);
+                        transition: all 0.5s ease-in-out;
+                        border-radius: calc(var(--round) - var(--space));
+                        z-index: 0;
+                      }
+                      .notes-animated-button::before {
+                        --space: 1px;
+                        background: linear-gradient(
+                          177.95deg,
+                          rgba(255, 255, 255, 0.19) 0%,
+                          rgba(255, 255, 255, 0) 100%
+                        );
+                      }
+                      .notes-animated-button::after {
+                        --space: 2px;
+                        background: radial-gradient(
+                            65.28% 65.28% at 50% 100%,
+                            rgba(207, 155, 99, 0.8) 0%,
+                            rgba(207, 155, 99, 0) 100%
+                          ),
+                          linear-gradient(135deg, #1E65AD 0%, #CF9B63 100%);
+                      }
+                      .notes-animated-button:active {
+                        transform: scale(0.95);
+                      }
+                      .notes-points-wrapper {
+                        overflow: hidden;
+                        width: 100%;
+                        height: 100%;
+                        pointer-events: none;
+                        position: absolute;
+                        z-index: 1;
+                      }
+                      .notes-points-wrapper .notes-point {
+                        bottom: -10px;
+                        position: absolute;
+                        animation: floating-points-notes infinite ease-in-out;
+                        pointer-events: none;
+                        width: 2px;
+                        height: 2px;
+                        background-color: #fff;
+                        border-radius: 9999px;
+                      }
+                      @keyframes floating-points-notes {
+                        0% {
+                          transform: translateY(0);
+                        }
+                        85% {
+                          opacity: 0;
+                        }
+                        100% {
+                          transform: translateY(-55px);
+                          opacity: 0;
+                        }
+                      }
+                      .notes-points-wrapper .notes-point:nth-child(1) {
+                        left: 10%;
+                        opacity: 1;
+                        animation-duration: 2.35s;
+                        animation-delay: 0.2s;
+                      }
+                      .notes-points-wrapper .notes-point:nth-child(2) {
+                        left: 30%;
+                        opacity: 0.7;
+                        animation-duration: 2.5s;
+                        animation-delay: 0.5s;
+                      }
+                      .notes-points-wrapper .notes-point:nth-child(3) {
+                        left: 25%;
+                        opacity: 0.8;
+                        animation-duration: 2.2s;
+                        animation-delay: 0.1s;
+                      }
+                      .notes-points-wrapper .notes-point:nth-child(4) {
+                        left: 44%;
+                        opacity: 0.6;
+                        animation-duration: 2.05s;
+                      }
+                      .notes-points-wrapper .notes-point:nth-child(5) {
+                        left: 50%;
+                        opacity: 1;
+                        animation-duration: 1.9s;
+                      }
+                      .notes-points-wrapper .notes-point:nth-child(6) {
+                        left: 75%;
+                        opacity: 0.5;
+                        animation-duration: 1.5s;
+                        animation-delay: 1.5s;
+                      }
+                      .notes-points-wrapper .notes-point:nth-child(7) {
+                        left: 88%;
+                        opacity: 0.9;
+                        animation-duration: 2.2s;
+                        animation-delay: 0.2s;
+                      }
+                      .notes-points-wrapper .notes-point:nth-child(8) {
+                        left: 58%;
+                        opacity: 0.8;
+                        animation-duration: 2.25s;
+                        animation-delay: 0.2s;
+                      }
+                      .notes-points-wrapper .notes-point:nth-child(9) {
+                        left: 98%;
+                        opacity: 0.6;
+                        animation-duration: 2.6s;
+                        animation-delay: 0.1s;
+                      }
+                      .notes-points-wrapper .notes-point:nth-child(10) {
+                        left: 65%;
+                        opacity: 1;
+                        animation-duration: 2.5s;
+                        animation-delay: 0.2s;
+                      }
+                      .notes-inner {
+                        z-index: 2;
+                        gap: 6px;
+                        position: relative;
+                        width: 100%;
+                        color: white;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 10px;
+                        font-weight: 500;
+                        line-height: 1.4;
+                        transition: color 0.2s ease-in-out;
+                        font-family: 'Roboto', sans-serif;
+                      }
+                      @media (min-width: 640px) {
+                        .notes-inner {
+                          font-size: 14px;
+                        }
+                      }
+                      .notes-inner svg.notes-icon {
+                        width: 12px;
+                        height: 12px;
+                        transition: fill 0.1s linear;
+                      }
+                      @media (min-width: 640px) {
+                        .notes-inner svg.notes-icon {
+                          width: 16px;
+                          height: 16px;
+                        }
+                      }
+                      .notes-animated-button:focus svg.notes-icon {
+                        fill: white;
+                      }
+                      .notes-animated-button:hover svg.notes-icon {
+                        fill: transparent;
+                        animation:
+                          dasharray-notes 1s linear forwards,
+                          filled-notes 0.1s linear forwards 0.95s;
+                      }
+                      @keyframes dasharray-notes {
+                        from {
+                          stroke-dasharray: 0 0 0 0;
+                        }
+                        to {
+                          stroke-dasharray: 68 68 0 0;
+                        }
+                      }
+                      @keyframes filled-notes {
+                        to {
+                          fill: white;
+                        }
+                      }
+                    `}</style>
+                    {isUserAuthenticated ? (
+                      // Real Notes Button (when logged in)
                     <button
+                        type="button"
+                        className="notes-animated-button flex-1 sm:flex-none"
                       onClick={() => {
                         // Check if we have saved notes, if not initialize with default content
                         const notesKey = `notes_mapping_${mapping?.id || 'default'}`;
@@ -375,22 +830,53 @@ export default function MappingDetails() {
                         
                         setShowNotesPopup(true);
                       }}
-                      className="flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 md:px-3 py-1.5 sm:py-2 text-white rounded-lg transition-all duration-200 font-medium text-xs sm:text-sm shadow-sm hover:shadow-md whitespace-nowrap"
-                      style={{ 
-                        fontFamily: 'Roboto, sans-serif',
-                        background: 'linear-gradient(90deg, #1E65AD 0%, #CF9B63 100%)'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.target.style.background = 'linear-gradient(90deg, #1a5a9a 0%, #b88a56 100%)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.background = 'linear-gradient(90deg, #1E65AD 0%, #CF9B63 100%)';
-                      }}
                       title="Add Notes"
                     >
-                      <StickyNote className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                      <span className="hidden sm:inline">Notes</span>
+                        <div className="notes-points-wrapper">
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                        </div>
+                        <span className="notes-inner">
+                          <StickyNote className="notes-icon" style={{ width: '12px', height: '12px' }} />
+                          <span className="text-[10px] sm:text-xs md:text-base">Notes</span>
+                        </span>
                     </button>
+                    ) : (
+                      // Fake Notes Button (when not logged in - navigates to login)
+                      <button
+                        type="button"
+                        className="notes-animated-button flex-1 sm:flex-none"
+                        onClick={() => {
+                          navigate('/login');
+                        }}
+                        title="Login to Add Notes"
+                      >
+                        <div className="notes-points-wrapper">
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                          <i className="notes-point"></i>
+                        </div>
+                        <span className="notes-inner">
+                          <StickyNote className="notes-icon" style={{ width: '12px', height: '12px' }} />
+                          <span className="text-[10px] sm:text-xs md:text-base">Notes</span>
+                        </span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

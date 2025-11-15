@@ -1369,7 +1369,20 @@ class ApiService {
 
   // Get user bookmarks
   async getUserBookmarks(params = {}) {
-    const queryString = new URLSearchParams(params).toString();
+    // Handle folder_id parameter - backend expects folder_id, but we support folderId for consistency
+    const queryParams = { ...params };
+    if (queryParams.folderId !== undefined) {
+      queryParams.folder_id = queryParams.folderId;
+      delete queryParams.folderId;
+    }
+    // Special case: folder_id=0 means bookmarks without folder (null)
+    if (queryParams.folder_id === 0) {
+      queryParams.folder_id = null;
+    }
+    
+    const queryString = new URLSearchParams(
+      Object.entries(queryParams).filter(([_, v]) => v !== null && v !== undefined)
+    ).toString();
     const headers = this.getAuthHeaders();
     
     // Log token info for debugging (without exposing actual token)
@@ -1392,10 +1405,12 @@ class ApiService {
   }
 
   // Bookmark a judgement
-  async bookmarkJudgement(judgementId) {
+  async bookmarkJudgement(judgementId, folderId = null) {
+    const payload = folderId ? { folder_id: folderId } : {};
     const response = await fetch(`${this.baseURL}/api/bookmarks/judgements/${judgementId}`, {
       method: 'POST',
-      headers: this.getAuthHeaders()
+      headers: this.getAuthHeaders(),
+      body: Object.keys(payload).length > 0 ? JSON.stringify(payload) : undefined
     });
     return await this.handleResponse(response);
   }
@@ -1730,6 +1745,49 @@ class ApiService {
     return await response.text(); // Return Markdown as text
   }
 
+  // Get central act markdown by ID
+  async getCentralActByIdMarkdown(actId) {
+    const token = localStorage.getItem('access_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
+    const headers = {
+      'Accept': 'text/markdown',
+      'ngrok-skip-browser-warning': 'true',
+      ...(token && { 'Authorization': `Bearer ${token}` })
+    };
+    
+    const response = await fetch(`${this.baseURL}/api/central_acts/${actId}?format=markdown`, {
+      method: 'GET',
+      headers: headers
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch central act Markdown: ${response.statusText}`);
+    }
+    
+    return await response.text(); // Return Markdown as text
+  }
+
+  // Get state act markdown by ID
+  async getStateActByIdMarkdown(actId) {
+    const token = localStorage.getItem('access_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
+    const headers = {
+      'Accept': 'text/markdown',
+      'ngrok-skip-browser-warning': 'true',
+      ...(token && { 'Authorization': `Bearer ${token}` })
+    };
+    
+    const response = await fetch(`${this.baseURL}/api/state_acts/${actId}?format=markdown`, {
+      method: 'GET',
+      headers: headers
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch state act Markdown: ${response.statusText}`);
+    }
+    
+    return await response.text(); // Return Markdown as text
+  }
+
+
   // Get judgment summary using Gemini
   async getJudgementSummary(judgementId, options = {}) {
     const token = localStorage.getItem('access_token') || localStorage.getItem('accessToken') || localStorage.getItem('token');
@@ -1770,7 +1828,7 @@ class ApiService {
   }
 
   // Bookmark an act (central or state)
-  async bookmarkAct(actType, actId) {
+  async bookmarkAct(actType, actId, folderId = null) {
     // Ensure actId is numeric - backend requires numeric ID
     const numericId = parseInt(actId);
     if (isNaN(numericId)) {
@@ -1786,13 +1844,15 @@ class ApiService {
     
     const url = `${this.baseURL}/api/bookmarks/acts/${validActType}/${numericId}`;
     const headers = this.getAuthHeaders();
+    const payload = folderId ? { folder_id: folderId } : {};
     
-    console.log('🔖 Bookmarking act:', { actType, validActType, actId, numericId, url });
+    console.log('🔖 Bookmarking act:', { actType, validActType, actId, numericId, folderId, url });
     console.log('🔖 Headers:', { ...headers, Authorization: headers.Authorization ? 'Bearer ***' : 'None' });
     
     const response = await fetch(url, {
       method: 'POST',
-      headers: headers
+      headers: headers,
+      body: Object.keys(payload).length > 0 ? JSON.stringify(payload) : undefined
     });
     
     console.log('🔖 Response status:', response.status, response.statusText);
@@ -1854,10 +1914,12 @@ class ApiService {
   }
 
   // Bookmark a mapping (BSA-IEA or BNS-IPC)
-  async bookmarkMapping(mappingType, mappingId) {
+  async bookmarkMapping(mappingType, mappingId, folderId = null) {
+    const payload = folderId ? { folder_id: folderId } : {};
     const response = await fetch(`${this.baseURL}/api/bookmarks/mappings/${mappingType}/${mappingId}`, {
       method: 'POST',
-      headers: this.getAuthHeaders()
+      headers: this.getAuthHeaders(),
+      body: Object.keys(payload).length > 0 ? JSON.stringify(payload) : undefined
     });
     return await this.handleResponse(response);
   }
@@ -1903,6 +1965,62 @@ class ApiService {
 
     const response = await fetch(`${this.baseURL}${url}`, {
       method,
+      headers: this.getAuthHeaders()
+    });
+    return await this.handleResponse(response);
+  }
+
+  // ===== BOOKMARK FOLDER MANAGEMENT =====
+
+  // Create a bookmark folder
+  async createBookmarkFolder(name) {
+    if (!name || !name.trim()) {
+      throw new Error('Folder name is required');
+    }
+    const response = await fetch(`${this.baseURL}/api/bookmarks/folders`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ name: name.trim() })
+    });
+    return await this.handleResponse(response);
+  }
+
+  // Get all bookmark folders
+  async getBookmarkFolders() {
+    const response = await fetch(`${this.baseURL}/api/bookmarks/folders`, {
+      method: 'GET',
+      headers: this.getAuthHeaders()
+    });
+    return await this.handleResponse(response);
+  }
+
+  // Update a bookmark folder (rename)
+  async updateBookmarkFolder(folderId, name) {
+    if (!name || !name.trim()) {
+      throw new Error('Folder name is required');
+    }
+    const response = await fetch(`${this.baseURL}/api/bookmarks/folders/${folderId}`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ name: name.trim() })
+    });
+    return await this.handleResponse(response);
+  }
+
+  // Delete a bookmark folder
+  async deleteBookmarkFolder(folderId) {
+    const response = await fetch(`${this.baseURL}/api/bookmarks/folders/${folderId}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders()
+    });
+    return await this.handleResponse(response);
+  }
+
+  // Get bookmarks in a specific folder
+  async getBookmarksInFolder(folderId, limit = 50, offset = 0) {
+    const queryString = new URLSearchParams({ limit, offset }).toString();
+    const response = await fetch(`${this.baseURL}/api/bookmarks/folders/${folderId}?${queryString}`, {
+      method: 'GET',
       headers: this.getAuthHeaders()
     });
     return await this.handleResponse(response);

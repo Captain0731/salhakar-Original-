@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bookmark, BookmarkCheck, Star, StarOff, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { Bookmark, BookmarkCheck, Star, StarOff, Loader2, CheckCircle, XCircle, Folder, X } from 'lucide-react';
 import apiService from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -26,6 +26,9 @@ const BookmarkButton = ({
   const [error, setError] = useState(null);
   const [notification, setNotification] = useState(null);
   const [bookmarkId, setBookmarkId] = useState(null);
+  const [showFolderSelector, setShowFolderSelector] = useState(false);
+  const [folders, setFolders] = useState([]);
+  const folderSelectorRef = useRef(null);
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
 
@@ -38,12 +41,42 @@ const BookmarkButton = ({
     return isAuthenticated && hasValidToken;
   };
 
+  // Load folders on mount
+  useEffect(() => {
+    if (isUserAuthenticated()) {
+      loadFolders();
+    }
+  }, [isAuthenticated]);
+
   // Check bookmark status on mount
   useEffect(() => {
     if (autoCheckStatus && item?.id && isUserAuthenticated()) {
       checkBookmarkStatus();
     }
   }, [item?.id, type, isAuthenticated]);
+
+  // Close folder selector when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (folderSelectorRef.current && !folderSelectorRef.current.contains(event.target)) {
+        setShowFolderSelector(false);
+      }
+    };
+
+    if (showFolderSelector) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showFolderSelector]);
+
+  const loadFolders = async () => {
+    try {
+      const response = await apiService.getBookmarkFolders();
+      setFolders(response.folders || []);
+    } catch (err) {
+      console.error('Error loading folders:', err);
+    }
+  };
 
   const checkBookmarkStatus = async () => {
     if (!item?.id) return;
@@ -92,7 +125,7 @@ const BookmarkButton = ({
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const handleBookmarkToggle = async () => {
+  const handleBookmarkToggle = async (folderId = null) => {
     if (isLoading || !item) return;
     
     // Check authentication first
@@ -100,6 +133,15 @@ const BookmarkButton = ({
       navigate('/login');
       return;
     }
+    
+    // If not bookmarked and folders exist, show folder selector
+    if (!isBookmarked && folders.length > 0 && folderId === null) {
+      setShowFolderSelector(true);
+      return;
+    }
+    
+    // Close folder selector
+    setShowFolderSelector(false);
     
     // For acts, ensure we have a valid numeric ID
     let itemId = item.id;
@@ -121,7 +163,7 @@ const BookmarkButton = ({
     setIsLoading(true);
     setError(null);
     
-    console.log('🔖 BookmarkButton: Toggling bookmark', { type, itemId, item, isBookmarked });
+    console.log('🔖 BookmarkButton: Toggling bookmark', { type, itemId, item, isBookmarked, folderId });
     
     try {
       let success = false;
@@ -179,7 +221,7 @@ const BookmarkButton = ({
         let response;
         switch (type) {
           case 'judgement':
-            response = await apiService.bookmarkJudgement(item.id);
+            response = await apiService.bookmarkJudgement(item.id, folderId);
             message = 'Judgment added to bookmarks';
             break;
           case 'central_act':
@@ -188,8 +230,8 @@ const BookmarkButton = ({
             if (isNaN(centralActIdAdd)) {
               throw new Error('Invalid central act ID');
             }
-            console.log('🔖 Adding central act bookmark:', { id: centralActIdAdd, originalId: item.id, item });
-            response = await apiService.bookmarkAct('central', centralActIdAdd);
+            console.log('🔖 Adding central act bookmark:', { id: centralActIdAdd, originalId: item.id, item, folderId });
+            response = await apiService.bookmarkAct('central', centralActIdAdd, folderId);
             console.log('🔖 Central act bookmark response:', response);
             message = 'Central act added to bookmarks';
             break;
@@ -199,21 +241,21 @@ const BookmarkButton = ({
             if (isNaN(stateActIdAdd)) {
               throw new Error('Invalid state act ID');
             }
-            console.log('🔖 Adding state act bookmark:', { id: stateActIdAdd, originalId: item.id, item });
-            response = await apiService.bookmarkAct('state', stateActIdAdd);
+            console.log('🔖 Adding state act bookmark:', { id: stateActIdAdd, originalId: item.id, item, folderId });
+            response = await apiService.bookmarkAct('state', stateActIdAdd, folderId);
             console.log('🔖 State act bookmark response:', response);
             message = 'State act added to bookmarks';
             break;
           case 'bsa_iea_mapping':
-            response = await apiService.bookmarkMapping('bsa_iea', item.id);
+            response = await apiService.bookmarkMapping('bsa_iea', item.id, folderId);
             message = 'BSA-IEA mapping added to bookmarks';
             break;
           case 'bns_ipc_mapping':
-            response = await apiService.bookmarkMapping('bns_ipc', item.id);
+            response = await apiService.bookmarkMapping('bns_ipc', item.id, folderId);
             message = 'BNS-IPC mapping added to bookmarks';
             break;
           case 'bnss_crpc_mapping':
-            response = await apiService.bookmarkMapping('bnss_crpc', item.id);
+            response = await apiService.bookmarkMapping('bnss_crpc', item.id, folderId);
             message = 'BNSS-CrPC mapping added to bookmarks';
             break;
           default:
@@ -327,7 +369,7 @@ const BookmarkButton = ({
   return (
     <div className={`relative ${className}`}>
       <button
-        onClick={handleBookmarkToggle}
+        onClick={() => handleBookmarkToggle()}
         disabled={isLoading || isCheckingStatus}
         className={`${getButtonStyles()} ${getButtonColors()}`}
         style={{ 
@@ -349,6 +391,50 @@ const BookmarkButton = ({
       >
         {getButtonContent()}
       </button>
+
+      {/* Folder Selector Popup */}
+      {showFolderSelector && (
+        <div
+          ref={folderSelectorRef}
+          className="absolute top-full left-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[200px] max-w-[300px]"
+          style={{ fontFamily: 'Roboto, sans-serif' }}
+        >
+          <div className="p-3 border-b border-gray-200 flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-gray-900">Select Folder</h4>
+            <button
+              onClick={() => setShowFolderSelector(false)}
+              className="p-1 hover:bg-gray-100 rounded transition-colors"
+            >
+              <X className="w-4 h-4 text-gray-500" />
+            </button>
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            <button
+              onClick={() => handleBookmarkToggle(null)}
+              className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 transition-colors"
+            >
+              <Bookmark className="w-4 h-4 text-gray-500" />
+              <span className="text-gray-700">No Folder</span>
+            </button>
+            {folders.map((folder) => (
+              <button
+                key={folder.id}
+                onClick={() => handleBookmarkToggle(folder.id)}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 transition-colors"
+              >
+                <Folder className="w-4 h-4 text-gray-500" />
+                <span className="text-gray-700 flex-1">{folder.name}</span>
+                <span className="text-xs text-gray-400">{folder.bookmark_count || 0}</span>
+              </button>
+            ))}
+          </div>
+          {folders.length === 0 && (
+            <div className="p-3 text-center text-xs text-gray-500">
+              No folders yet. Create one in Bookmarks page.
+            </div>
+          )}
+        </div>
+      )}
       
       {/* Error Tooltip - Only show if showText is true */}
       {error && showText && (

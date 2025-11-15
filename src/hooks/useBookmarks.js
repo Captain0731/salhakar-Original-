@@ -7,6 +7,8 @@ import apiService from '../services/api';
  */
 const useBookmarks = (userToken) => {
   const [bookmarks, setBookmarks] = useState([]);
+  const [folders, setFolders] = useState([]);
+  const [selectedFolderId, setSelectedFolderId] = useState(null); // null = all, 0 = no folder
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [pagination, setPagination] = useState({
@@ -15,18 +17,33 @@ const useBookmarks = (userToken) => {
     hasMore: false
   });
 
+  // Load folders from API
+  const loadFolders = useCallback(async () => {
+    if (!userToken) return;
+    
+    try {
+      const response = await apiService.getBookmarkFolders();
+      setFolders(response.folders || []);
+    } catch (err) {
+      console.error('Error loading folders:', err);
+      // Don't set error for folders - it's not critical
+    }
+  }, [userToken]);
+
   // Load bookmarks from API
-  const loadBookmarks = useCallback(async (offset = 0, limit = 50) => {
+  const loadBookmarks = useCallback(async (offset = 0, limit = 50, folderId = null) => {
     if (!userToken) return;
     
     setLoading(true);
     setError(null);
     
     try {
-      const response = await apiService.getUserBookmarks({
-        limit,
-        offset
-      });
+      const params = { limit, offset };
+      if (folderId !== null) {
+        params.folderId = folderId;
+      }
+      
+      const response = await apiService.getUserBookmarks(params);
       
       if (offset === 0) {
         setBookmarks(response.bookmarks || []);
@@ -48,18 +65,20 @@ const useBookmarks = (userToken) => {
   }, [userToken]);
 
   // Bookmark a judgement
-  const bookmarkJudgement = useCallback(async (judgementId) => {
+  const bookmarkJudgement = useCallback(async (judgementId, folderId = null) => {
     try {
-      await apiService.bookmarkJudgement(judgementId);
+      await apiService.bookmarkJudgement(judgementId, folderId);
       // Reload bookmarks to show the new one
-      await loadBookmarks();
+      await loadBookmarks(0, 50, selectedFolderId);
+      // Reload folders to update counts
+      await loadFolders();
       return true;
     } catch (err) {
       setError(err.message || 'Failed to bookmark judgement');
       console.error('Error bookmarking judgement:', err);
       return false;
     }
-  }, [loadBookmarks]);
+  }, [loadBookmarks, selectedFolderId, loadFolders]);
 
   // Remove judgement bookmark
   const removeJudgementBookmark = useCallback(async (judgementId) => {
@@ -76,18 +95,20 @@ const useBookmarks = (userToken) => {
   }, []);
 
   // Bookmark an act (central or state)
-  const bookmarkAct = useCallback(async (actType, actId) => {
+  const bookmarkAct = useCallback(async (actType, actId, folderId = null) => {
     try {
-      await apiService.bookmarkAct(actType, actId);
+      await apiService.bookmarkAct(actType, actId, folderId);
       // Reload bookmarks to show the new one
-      await loadBookmarks();
+      await loadBookmarks(0, 50, selectedFolderId);
+      // Reload folders to update counts
+      await loadFolders();
       return true;
     } catch (err) {
       setError(err.message || 'Failed to bookmark act');
       console.error('Error bookmarking act:', err);
       return false;
     }
-  }, [loadBookmarks]);
+  }, [loadBookmarks, selectedFolderId, loadFolders]);
 
   // Remove act bookmark
   const removeActBookmark = useCallback(async (actType, actId) => {
@@ -104,18 +125,20 @@ const useBookmarks = (userToken) => {
   }, []);
 
   // Bookmark a mapping (BSA-IEA or BNS-IPC)
-  const bookmarkMapping = useCallback(async (mappingType, mappingId) => {
+  const bookmarkMapping = useCallback(async (mappingType, mappingId, folderId = null) => {
     try {
-      await apiService.bookmarkMapping(mappingType, mappingId);
+      await apiService.bookmarkMapping(mappingType, mappingId, folderId);
       // Reload bookmarks to show the new one
-      await loadBookmarks();
+      await loadBookmarks(0, 50, selectedFolderId);
+      // Reload folders to update counts
+      await loadFolders();
       return true;
     } catch (err) {
       setError(err.message || 'Failed to bookmark mapping');
       console.error('Error bookmarking mapping:', err);
       return false;
     }
-  }, [loadBookmarks]);
+  }, [loadBookmarks, selectedFolderId, loadFolders]);
 
   // Remove mapping bookmark
   const removeMappingBookmark = useCallback(async (mappingType, mappingId) => {
@@ -132,7 +155,7 @@ const useBookmarks = (userToken) => {
   }, []);
 
   // Generic toggle bookmark function
-  const toggleBookmark = useCallback(async (type, id, actType = null, mappingType = null) => {
+  const toggleBookmark = useCallback(async (type, id, actType = null, mappingType = null, folderId = null) => {
     // Check if already bookmarked
     const existingBookmark = bookmarks.find(b =>
       b.type === type && b.item.id === id
@@ -159,15 +182,15 @@ const useBookmarks = (userToken) => {
       // Add bookmark
       switch (type) {
         case 'judgement':
-          return await bookmarkJudgement(id);
+          return await bookmarkJudgement(id, folderId);
         case 'central_act':
-          return await bookmarkAct('central', id);
+          return await bookmarkAct('central', id, folderId);
         case 'state_act':
-          return await bookmarkAct('state', id);
+          return await bookmarkAct('state', id, folderId);
         case 'bsa_iea_mapping':
-          return await bookmarkMapping('bsa_iea', id);
+          return await bookmarkMapping('bsa_iea', id, folderId);
         case 'bns_ipc_mapping':
-          return await bookmarkMapping('bns_ipc', id);
+          return await bookmarkMapping('bns_ipc', id, folderId);
         default:
           setError(`Unsupported bookmark type: ${type}`);
           return false;
@@ -212,10 +235,19 @@ const useBookmarks = (userToken) => {
     setError(null);
   }, []);
 
-  // Load bookmarks on mount and when userToken changes
+  // Load folders on mount and when userToken changes
   useEffect(() => {
     if (userToken) {
-      loadBookmarks();
+      loadFolders();
+    } else {
+      setFolders([]);
+    }
+  }, [userToken, loadFolders]);
+
+  // Load bookmarks on mount and when userToken or selectedFolderId changes
+  useEffect(() => {
+    if (userToken) {
+      loadBookmarks(0, 50, selectedFolderId);
     } else {
       setBookmarks([]);
       setPagination({
@@ -224,17 +256,60 @@ const useBookmarks = (userToken) => {
         hasMore: false
       });
     }
-  }, [userToken, loadBookmarks]);
+  }, [userToken, selectedFolderId, loadBookmarks]);
+
+  // Folder management functions
+  const createFolder = useCallback(async (name) => {
+    try {
+      const folder = await apiService.createBookmarkFolder(name);
+      await loadFolders();
+      return folder;
+    } catch (err) {
+      setError(err.message || 'Failed to create folder');
+      console.error('Error creating folder:', err);
+      throw err;
+    }
+  }, [loadFolders]);
+
+  const updateFolder = useCallback(async (folderId, name) => {
+    try {
+      const folder = await apiService.updateBookmarkFolder(folderId, name);
+      await loadFolders();
+      return folder;
+    } catch (err) {
+      setError(err.message || 'Failed to update folder');
+      console.error('Error updating folder:', err);
+      throw err;
+    }
+  }, [loadFolders]);
+
+  const deleteFolder = useCallback(async (folderId) => {
+    try {
+      await apiService.deleteBookmarkFolder(folderId);
+      await loadFolders();
+      // If deleted folder was selected, reset to all bookmarks
+      if (selectedFolderId === folderId) {
+        setSelectedFolderId(null);
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to delete folder');
+      console.error('Error deleting folder:', err);
+      throw err;
+    }
+  }, [loadFolders, selectedFolderId]);
 
   return {
     // State
     bookmarks,
+    folders,
+    selectedFolderId,
     loading,
     error,
     pagination,
     
     // Actions
     loadBookmarks,
+    loadFolders,
     loadMoreBookmarks,
     toggleBookmark,
     bookmarkJudgement,
@@ -243,6 +318,12 @@ const useBookmarks = (userToken) => {
     removeActBookmark,
     bookmarkMapping,
     removeMappingBookmark,
+    
+    // Folder management
+    createFolder,
+    updateFolder,
+    deleteFolder,
+    setSelectedFolderId,
     
     // Utilities
     isBookmarked,

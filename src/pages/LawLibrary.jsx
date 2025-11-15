@@ -1022,17 +1022,14 @@ export default function LawLibrary() {
                     >
                       <div 
                         onClick={() => viewActDetails(act)}
-                        className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 group cursor-pointer w-full max-w-full"
-                        style={{
-                          borderLeft: '4px solid #1E65AD'
-                        }}
+                        className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200 cursor-pointer w-full max-w-full"
                       >
                         {/* Simple Card Header */}
                         <div className="px-3 sm:px-4 md:px-5 lg:px-6 py-3 sm:py-4 md:py-5 border-b border-gray-100">
                           <div className="flex items-start justify-between gap-2 sm:gap-3">
                             <div className="flex-1 min-w-0">
                               <h3 
-                                className="text-sm sm:text-base md:text-lg lg:text-xl font-bold mb-2 line-clamp-2 group-hover:text-blue-700 transition-colors" 
+                                className="text-sm sm:text-base md:text-lg lg:text-xl font-bold mb-2 line-clamp-2" 
                                 style={{ 
                                   color: '#1E65AD', 
                                   fontFamily: 'Helvetica Hebrew Bold, sans-serif',
@@ -1046,18 +1043,11 @@ export default function LawLibrary() {
                                   act.short_title || act.long_title || 'Untitled Act'
                                 )}
                               </h3>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {index === 0 && !loading && !searchInfo && (
-                                  <span className="inline-flex items-center px-2.5 py-1 bg-green-100 text-green-700 rounded-md text-xs font-semibold">
-                                    Latest
-                                  </span>
-                                )}
-                                {act.relevance_score && (
-                                  <span className="inline-flex items-center px-2.5 py-1 bg-purple-100 text-purple-700 rounded-md text-xs font-semibold" title={`Relevance Score: ${act.relevance_score.toFixed(2)}`}>
-                                    Score: {act.relevance_score.toFixed(1)}
-                                  </span>
-                                )}
-                              </div>
+                              {index === 0 && !loading && !searchInfo && (
+                                <span className="inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 bg-green-100 text-green-700 rounded-md text-xs font-semibold">
+                                  Latest
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1168,15 +1158,13 @@ export default function LawLibrary() {
                             </div>
 
                             {/* Right side - Button */}
-                            <div className="flex-shrink-0 flex items-center justify-start lg:justify-end lg:items-start pt-2 lg:pt-0">
-                              <motion.button
+                            <div className="flex-shrink-0 flex items-center justify-start sm:justify-end lg:items-start lg:pt-0 pt-2 sm:pt-0">
+                              <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   viewActDetails(act);
                                 }}
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                className="w-full sm:w-auto px-4 sm:px-5 py-2.5 sm:py-2.5 rounded-lg font-semibold text-sm sm:text-base transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap hover:bg-blue-700"
+                                className="w-full sm:w-auto px-4 sm:px-5 py-2.5 sm:py-2.5 rounded-lg font-semibold text-sm sm:text-base transition-colors duration-200 flex items-center justify-center gap-2 whitespace-nowrap hover:bg-blue-700"
                                 style={{ 
                                   backgroundColor: '#1E65AD',
                                   color: '#FFFFFF',
@@ -1187,7 +1175,7 @@ export default function LawLibrary() {
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                 </svg>
-                              </motion.button>
+                              </button>
                             </div>
                           </div>
                         </div>
