@@ -448,33 +448,16 @@ export default function LegalChatbot() {
                   </div>
                 ) : (
                           /* AI Response - Modern Card Design */
-                          <div className="max-w-[95%] sm:max-w-[90%] md:max-w-[85%] lg:max-w-[80%] w-full flex items-start gap-2 sm:gap-3">
-                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-blue-500 via-blue-600 to-amber-500 flex items-center justify-center flex-shrink-0 shadow-md">
+                          <div className="max-w-[65%] sm:max-w-[65%] md:max-w-[60%] lg:max-w-[50%] w-full flex items-start gap-2 sm:gap-3">
+                            <div className="w-10 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-blue-500 via-blue-600 to-amber-500 flex items-center justify-center flex-shrink-0 shadow-md">
                               <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                             </div>
                             <div className="flex-1">
-                              <div className="rounded-2xl sm:rounded-3xl bg-white shadow-lg overflow-hidden border border-gray-100" style={{
+                              <div className="rounded-2xl sm:rounded-3xl bg-white shadow-lg overflow-hidden border border-gray-100 px-4 sm:px-5 md:px-6 py-4 sm:py-5 md:py-6" style={{
                                 boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04)'
                               }}>
-                                {/* AI Header */}
-                                <div className="px-4 sm:px-5 md:px-6 py-3 sm:py-3.5 border-b border-gray-100" style={{
-                                  background: 'linear-gradient(135deg, #F9FAFC 0%, #FFFFFF 100%)'
-                                }}>
-                                  <div className="flex items-center gap-2 sm:gap-3">
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                                      <span className="text-xs sm:text-sm font-semibold" style={{ color: '#1E65AD', fontFamily: "'Roboto', sans-serif" }}>
-                                        Kiki AI
-                                      </span>
-                                    </div>
-                                    <span className="text-xs text-gray-500" style={{ fontFamily: "'Roboto', sans-serif" }}>
-                                      Legal Assistant
-                                    </span>
-                        </div>
-                          </div>
-                          
                       {/* AI Response Content */}
-                                <div className="px-4 sm:px-5 md:px-6 py-4 sm:py-5 md:py-6">
+                                <div>
                         <div 
                                     className="text-sm sm:text-base leading-relaxed break-words" 
                           style={{ 
@@ -579,7 +562,7 @@ export default function LegalChatbot() {
                       <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-blue-500 via-blue-600 to-amber-500 flex items-center justify-center flex-shrink-0 shadow-md">
                         <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                           </div>
-                      <div className="rounded-2xl sm:rounded-3xl bg-white border border-gray-200 shadow-md px-5 sm:px-6 py-4 sm:py-5">
+                      <div>
                         <div className="flex items-center gap-1.5 sm:gap-2">
                           <motion.div 
                             className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full"

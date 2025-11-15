@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import apiService from "../services/api";
+import { Lock, Eye, EyeOff, ArrowLeft, Mail } from "lucide-react";
+import { motion } from "framer-motion";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -77,14 +79,12 @@ export default function Login() {
 
   const validateEmail = (email) => {
     if (!email.trim()) {
-      return "Phone number or email is required";
+      return "Email is required";
     }
-    // Check if it's an email format
-    if (email.includes('@')) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        return "Please enter a valid email address";
-      }
+    // Check if it's a valid email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return "Please enter a valid email address";
     }
     return "";
   };
@@ -331,231 +331,300 @@ export default function Login() {
   }, [otpTimer]);
 
   return (
-    <>
-      <style jsx>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0px) rotate(0deg); }
-          50% { transform: translateY(-20px) rotate(180deg); }
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 0.05; }
-          50% { opacity: 0.1; }
-        }
-        @keyframes shimmer {
-          0% { background-position: -200% 0; }
-          100% { background-position: 200% 0; }
-        }
-        .animate-float {
-          animation: float 6s ease-in-out infinite;
-        }
-        .animate-pulse-slow {
-          animation: pulse 4s ease-in-out infinite;
-        }
-        .animate-shimmer {
-          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
-          background-size: 200% 100%;
-          animation: shimmer 2s infinite;
-        }
-        .animation-delay-1000 {
-          animation-delay: 1s;
-        }
-        .animation-delay-2000 {
-          animation-delay: 2s;
-        }
-        .animation-delay-3000 {
-          animation-delay: 3s;
-        }
-        .opacity-3 {
-          opacity: 0.03;
-        }
-        .opacity-5 {
-          opacity: 0.05;
-        }
-        .glass-effect {
-          backdrop-filter: blur(10px);
-          background: rgba(255, 255, 255, 0.1);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-        .hover-lift {
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .hover-lift:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-        }
-      `}</style>
-      <div className="min-h-screen relative overflow-hidden" style={{ backgroundColor: '#F9FAFC' }}>
-        {/* Background Elements */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-20 left-20 w-32 h-32 rounded-full opacity-5 animate-float" style={{ backgroundColor: '#1E65AD' }}></div>
-          <div className="absolute top-40 right-32 w-24 h-24 rounded-full opacity-5 animate-float animation-delay-1000" style={{ backgroundColor: '#CF9B63' }}></div>
-          <div className="absolute bottom-32 left-40 w-40 h-40 rounded-full opacity-5 animate-float animation-delay-2000" style={{ backgroundColor: '#8C969F' }}></div>
-          <div className="absolute bottom-20 right-20 w-28 h-28 rounded-full opacity-5 animate-float animation-delay-3000" style={{ backgroundColor: '#1E65AD' }}></div>
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full opacity-3 animate-pulse-slow" style={{ backgroundColor: '#CF9B63' }}></div>
-          <div className="absolute top-1/4 right-1/4 w-16 h-16 rounded-full opacity-4 animate-float animation-delay-1000" style={{ backgroundColor: '#1E65AD' }}></div>
-          <div className="absolute bottom-1/4 left-1/4 w-20 h-20 rounded-full opacity-4 animate-float animation-delay-2000" style={{ backgroundColor: '#8C969F' }}></div>
-        </div>
+    <div className="min-h-screen relative overflow-hidden" style={{ backgroundColor: '#f8fafc' }}>
 
-        <div className="flex items-center justify-center p-4 sm:p-6 lg:p-8 relative z-10 min-h-screen">
-
-      <div className="max-w-4xl w-full relative z-10">
-        <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden border border-gray-100 hover-lift">
-          <div className="lg:flex min-h-[500px] sm:min-h-[600px]">
+      <div className="flex items-center justify-center min-h-screen p-4 sm:p-6 lg:p-8 relative z-10">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="w-full max-w-6xl"
+        >
+          <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border border-white/20">
+            <div className="lg:grid lg:grid-cols-2 min-h-[600px]">
             {/* Left Panel - Branding */}
-            <div className="lg:w-1/2 p-6 sm:p-8 lg:p-12 flex flex-col justify-center items-center text-white relative overflow-hidden" style={{ background: `linear-gradient(135deg, #1E65AD 0%, #CF9B63 100%)` }}>
-              {/* Background Pattern */}
+              <motion.div
+                initial={{ opacity: 0, x: -50 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.8, delay: 0.2 }}
+                className="relative p-8 sm:p-12 lg:p-16 flex flex-col justify-center items-center text-white overflow-hidden"
+                style={{
+                  background: 'linear-gradient(135deg, #1E65AD 0%, #1a5a9a 50%, #CF9B63 100%)',
+                }}
+              >
+                {/* Animated Background Pattern */}
               <div className="absolute inset-0 opacity-10">
-                <div className="absolute top-4 left-4 w-8 h-8 border-2 border-white rounded-full"></div>
-                <div className="absolute top-8 right-8 w-6 h-6 border-2 border-white rounded-full"></div>
-                <div className="absolute bottom-8 left-8 w-4 h-4 border-2 border-white rounded-full"></div>
-                <div className="absolute bottom-4 right-4 w-10 h-10 border-2 border-white rounded-full"></div>
-              </div>
-              
-              <div className="text-center relative z-10">
-                <div className="mb-6 sm:mb-8">
-                  <div className="w-20 h-20 sm:w-24 sm:h-24 lg:w-28 lg:h-28 bg-gradient-to-br from-white/30 to-white/10 backdrop-blur-sm rounded-full flex items-center justify-center text-3xl font-bold shadow-2xl border-4 border-white/20 mx-auto animate-shimmer">
-                    🔐
-                  </div>
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                    className="absolute top-10 left-10 w-32 h-32 border-2 border-white rounded-full"
+                  />
+                  <motion.div
+                    animate={{ rotate: -360 }}
+                    transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+                    className="absolute bottom-10 right-10 w-24 h-24 border-2 border-white rounded-full"
+                  />
                 </div>
-                <h1 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-bold mb-4 sm:mb-6 text-white" style={{ fontFamily: 'Helvetica Hebrew Bold, sans-serif' }}>
-                  Welcome Back
-                </h1>
-                <p className="text-blue-100 mb-6 sm:mb-8 text-sm sm:text-base lg:text-lg leading-relaxed max-w-md mx-auto px-4" style={{ fontFamily: 'Roboto, sans-serif' }}>
-                  Sign in to access your legal tools and continue your journey with सलहाकार.
-                </p>
-                <div className="space-y-2 sm:space-y-3 w-full max-w-xs">
-                  <button
-                    className="w-full bg-transparent border-2 border-white/50 text-white py-2 sm:py-3 px-4 sm:px-6 rounded-lg sm:rounded-xl font-semibold hover:bg-white/10 transition-all duration-300 transform hover:scale-105 text-sm sm:text-base"
-                    onClick={() => navigate("/")}
-                    style={{ fontFamily: 'Roboto, sans-serif', minHeight: '44px' }}
+
+                <div className="relative z-10 text-center w-full">
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ duration: 0.5, delay: 0.4, type: "spring" }}
+                    className="mb-6"
                   >
-                    ← Back to Home
-                  </button>
+                    <img
+                      src="/salahakar .PNG"
+                      alt="सलहाकार Logo"
+                      className="mx-auto max-w-[140px] sm:max-w-[180px] lg:max-w-[220px] h-auto object-contain drop-shadow-2xl"
+                    />
+                  </motion.div>
+
+                  {/* <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: 0.6 }}
+                    className="mb-8"
+                  >
+                    <div className="w-24 h-24 sm:w-28 sm:h-28 lg:w-32 lg:h-32 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center mx-auto border-4 border-white/30 shadow-2xl">
+                      <Lock className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 text-white stroke-[2.5]" />
+                    </div>
+                  </motion.div> */}
+
+                  <motion.h1
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: 0.8 }}
+                    className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold mb-4 sm:mb-6 text-white drop-shadow-lg"
+                    style={{ fontFamily: 'Helvetica Hebrew Bold, sans-serif' }}
+                  >
+                  Welcome Back
+                  </motion.h1>
+
+                  <motion.p
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: 1 }}
+                    className="text-blue-100 mb-8 text-base sm:text-lg lg:text-xl leading-relaxed max-w-md mx-auto px-4"
+                    style={{ fontFamily: 'Roboto, sans-serif' }}
+                  >
+                    Sign in to access your legal tools and continue your journey with सलहाकार.
+                  </motion.p>
+
+                  <motion.button
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: 1.2 }}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => navigate("/")}
+                    className="group w-full max-w-xs mx-auto bg-white/10 backdrop-blur-md border-2 border-white/50 text-white py-3 px-6 rounded-xl font-semibold hover:bg-white/20 transition-all duration-300 flex items-center justify-center gap-2"
+                    style={{ fontFamily: 'Roboto, sans-serif', minHeight: '48px' }}
+                  >
+                    <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                    Back to Home
+                  </motion.button>
                 </div>
-              </div>
-            </div>
+              </motion.div>
 
             {/* Right Panel - Login Form */}
-            <div className="lg:w-1/2 p-6 sm:p-8 lg:p-12">
-              <div className="max-w-md mx-auto">
-                <div className="text-center mb-6 sm:mb-8">
-                  <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-2 sm:mb-3" style={{ color: '#1E65AD', fontFamily: 'Helvetica Hebrew Bold, sans-serif' }}>
+              <motion.div
+                initial={{ opacity: 0, x: 50 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.8, delay: 0.3 }}
+                className="p-8 sm:p-12 lg:p-16 flex flex-col justify-center bg-white"
+              >
+                <div className="max-w-md mx-auto w-full">
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: 0.5 }}
+                    className="text-center mb-8"
+                  >
+                    <h2 className="text-3xl sm:text-4xl font-bold mb-2" style={{ color: '#1E65AD', fontFamily: 'Helvetica Hebrew Bold, sans-serif' }}>
                     Sign In
                   </h2>
-                  <p className="text-sm sm:text-base" style={{ color: '#8C969F', fontFamily: 'Roboto, sans-serif' }}>Access your account</p>
-                  <div className="w-16 sm:w-20 h-1 mx-auto mt-3 sm:mt-4 rounded-full" style={{ backgroundColor: '#CF9B63' }}></div>
-                </div>
+                    <p className="text-gray-600 text-sm sm:text-base" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      Access your account
+                    </p>
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: '80px' }}
+                      transition={{ duration: 0.6, delay: 0.7 }}
+                      className="h-1 mx-auto mt-4 rounded-full"
+                      style={{ backgroundColor: '#CF9B63' }}
+                    />
+                  </motion.div>
                 
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.3 }}
+                  >
                 {message && (
-                  <div className="bg-green-50 border-l-4 border-green-400 text-green-700 px-3 sm:px-4 py-2 sm:py-3 rounded-lg mb-4 sm:mb-6">
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-green-50 border-l-4 border-green-500 text-green-800 px-4 py-3 rounded-lg mb-6 shadow-sm"
+                      >
                     <div className="flex items-center">
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5 text-green-400 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                          <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                       </svg>
-                      <span className="text-sm sm:text-base" style={{ fontFamily: 'Roboto, sans-serif' }}>{message}</span>
+                          <span className="text-sm font-medium" style={{ fontFamily: 'Roboto, sans-serif' }}>{message}</span>
                     </div>
+                      </motion.div>
+                    )}
+                    
+                    {error && !fieldErrors.phoneOrEmail && !fieldErrors.password && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-red-50 border-l-4 border-red-500 text-red-800 px-4 py-3 rounded-lg mb-6 shadow-sm"
+                      >
+                        <div className="flex items-center">
+                          <svg className="w-5 h-5 text-red-500 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                          </svg>
+                          <span className="text-sm font-medium" style={{ fontFamily: 'Roboto, sans-serif' }}>{error}</span>
                   </div>
+                      </motion.div>
                 )}
-                
-                {/* General error message (for API errors) */}
-                {error && !fieldErrors.phoneOrEmail && !fieldErrors.password && (
-                  <div className="bg-red-50 border-l-4 border-red-400 text-red-700 px-3 sm:px-4 py-2 sm:py-3 rounded-lg mb-4 sm:mb-6">
-                    <div className="flex items-center">
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5 text-red-400 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-sm sm:text-base" style={{ fontFamily: 'Roboto, sans-serif' }}>{error}</span>
-                    </div>
-                  </div>
-                )}
+                  </motion.div>
 
                 {forgotPasswordStep === 0 ? (
-                  <form onSubmit={handleLogin} className="space-y-4 sm:space-y-6">
-                    <div>
-                      <label className="block text-sm font-semibold mb-2" style={{ color: '#1E65AD', fontFamily: 'Roboto, sans-serif' }}>
-                        Phone or Email *
-                      </label>
-              <input
-                        type="text"
-                        name="phoneOrEmail"
-                        value={loginData.phoneOrEmail}
-                        onChange={handleLoginChange}
-                        className={`w-full px-3 sm:px-4 py-2 sm:py-3 border-2 rounded-lg sm:rounded-xl focus:ring-2 focus:border-transparent transition-all duration-200 bg-gray-50 focus:bg-white text-sm sm:text-base ${fieldErrors.phoneOrEmail ? 'border-red-400' : 'border-gray-200'}`}
-                        style={{ fontFamily: 'Roboto, sans-serif', '--tw-ring-color': '#1E65AD', minHeight: '44px' }}
-                        placeholder="Enter phone number or email"
-                required
-              />
-              {fieldErrors.phoneOrEmail && (
-                <p className="mt-1 text-sm text-red-600" style={{ fontFamily: 'Roboto, sans-serif' }}>
-                  {fieldErrors.phoneOrEmail}
-                </p>
-              )}
-            </div>
+                    <motion.form
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.6, delay: 0.8 }}
+                      onSubmit={handleLogin}
+                      className="space-y-6"
+                    >
+                      <div>
+                        <label className="block text-sm font-semibold mb-2.5" style={{ color: '#1E65AD', fontFamily: 'Roboto, sans-serif' }}>
+                          Email *
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <Mail className="w-5 h-5 text-gray-400" />
+                          </div>
+                          <input
+                            type="email"
+                            name="phoneOrEmail"
+                            value={loginData.phoneOrEmail}
+                            onChange={handleLoginChange}
+                            className={`w-full pl-12 pr-4 py-3.5 border-2 rounded-xl focus:ring-2 focus:border-transparent transition-all duration-200 bg-gray-50 focus:bg-white text-sm sm:text-base ${
+                              fieldErrors.phoneOrEmail ? 'border-red-400 focus:ring-red-400' : 'border-gray-200 focus:ring-[#1E65AD]'
+                            }`}
+                            style={{ fontFamily: 'Roboto, sans-serif', minHeight: '48px' }}
+                            placeholder="Enter your email address"
+                            required
+                          />
+                        </div>
+                        {fieldErrors.phoneOrEmail && (
+                          <motion.p
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="mt-2 text-sm text-red-600"
+                            style={{ fontFamily: 'Roboto, sans-serif' }}
+                          >
+                            {fieldErrors.phoneOrEmail}
+                          </motion.p>
+                        )}
+                      </div>
 
                     <div>
-                      <label className="block text-sm font-semibold mb-2" style={{ color: '#1E65AD', fontFamily: 'Roboto, sans-serif' }}>
+                        <label className="block text-sm font-semibold mb-2.5" style={{ color: '#1E65AD', fontFamily: 'Roboto, sans-serif' }}>
                         Password *
                       </label>
                       <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <Lock className="w-5 h-5 text-gray-400" />
+                          </div>
               <input
                           type={showPassword ? "text" : "password"}
                           name="password"
                           value={loginData.password}
                           onChange={handleLoginChange}
-                          className={`w-full px-3 sm:px-4 py-2 sm:py-3 pr-10 sm:pr-12 border-2 rounded-lg sm:rounded-xl focus:ring-2 focus:border-transparent transition-all duration-200 bg-gray-50 focus:bg-white text-sm sm:text-base ${fieldErrors.password ? 'border-red-400' : 'border-gray-200'}`}
-                          style={{ fontFamily: 'Roboto, sans-serif', '--tw-ring-color': '#1E65AD', minHeight: '44px' }}
+                            className={`w-full pl-12 pr-12 py-3.5 border-2 rounded-xl focus:ring-2 focus:border-transparent transition-all duration-200 bg-gray-50 focus:bg-white text-sm sm:text-base ${
+                              fieldErrors.password ? 'border-red-400 focus:ring-red-400' : 'border-gray-200 focus:ring-[#1E65AD]'
+                            }`}
+                            style={{ fontFamily: 'Roboto, sans-serif', minHeight: '48px' }}
                           placeholder="Enter your password"
                 required
               />
               <button
                 type="button"
                           onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
-                          style={{ minHeight: '44px', minWidth: '44px' }}
+                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors duration-200 flex items-center justify-center p-2 rounded-lg hover:bg-gray-100"
+                            style={{ minHeight: '40px', minWidth: '40px' }}
               >
-                          {showPassword ? "👁️" : "👁️‍🗨️"}
+                            {showPassword ? <EyeOff className="w-5 h-5 stroke-[1.5]" /> : <Eye className="w-5 h-5 stroke-[1.5]" />}
               </button>
-                      </div>
-              {fieldErrors.password && (
-                <p className="mt-1 text-sm text-red-600" style={{ fontFamily: 'Roboto, sans-serif' }}>
-                  {fieldErrors.password}
-                </p>
-              )}
+                        </div>
+                        {fieldErrors.password && (
+                          <motion.p
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="mt-2 text-sm text-red-600"
+                            style={{ fontFamily: 'Roboto, sans-serif' }}
+                          >
+                            {fieldErrors.password}
+                          </motion.p>
+                        )}
             </div>
 
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
-                      <label className="flex items-center">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <label className="flex items-center cursor-pointer group">
                 <input
                   type="checkbox"
                           name="rememberMe"
                           checked={loginData.rememberMe}
                           onChange={handleLoginChange}
-                          className="w-4 h-4 rounded border-gray-300 focus:ring-2"
-                          style={{ '--tw-ring-color': '#1E65AD' }}
+                            className="w-4 h-4 rounded border-gray-300 text-[#1E65AD] focus:ring-2 focus:ring-[#1E65AD] cursor-pointer"
                         />
-                        <span className="ml-2 text-sm" style={{ color: '#8C969F', fontFamily: 'Roboto, sans-serif' }}>
+                          <span className="ml-2 text-sm text-gray-600 group-hover:text-gray-800 transition-colors" style={{ fontFamily: 'Roboto, sans-serif' }}>
                           Remember me
                         </span>
               </label>
                       <button
                         type="button"
                         onClick={handleForgotPassword}
-                        className="text-sm font-medium hover:underline self-start sm:self-auto"
-                        style={{ color: '#1E65AD', fontFamily: 'Roboto, sans-serif' }}
+                          className="text-sm font-semibold hover:underline text-[#1E65AD] hover:text-[#1a5a9a] transition-colors self-start sm:self-auto"
+                          style={{ fontFamily: 'Roboto, sans-serif' }}
                       >
                         Forgot password?
                       </button>
             </div>
 
-                    <button
+                      <motion.button
                       type="submit"
                       disabled={loading}
-                      className="w-full py-3 sm:py-4 px-4 sm:px-6 rounded-lg sm:rounded-xl font-semibold text-white transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none text-sm sm:text-base"
-                      style={{ backgroundColor: '#1E65AD', fontFamily: 'Roboto, sans-serif', minHeight: '44px' }}
-                    >
-                      {loading ? "Signing In..." : "Sign In"}
-                    </button>
-                  </form>
+                        whileHover={{ scale: loading ? 1 : 1.02 }}
+                        whileTap={{ scale: loading ? 1 : 0.98 }}
+                        className="w-full py-4 px-6 rounded-xl font-semibold text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-base shadow-lg hover:shadow-xl"
+                        style={{
+                          background: loading
+                            ? 'linear-gradient(135deg, #9CA3AF 0%, #6B7280 100%)'
+                            : 'linear-gradient(135deg, #1E65AD 0%, #1a5a9a 100%)',
+                          fontFamily: 'Roboto, sans-serif',
+                          minHeight: '52px'
+                        }}
+                      >
+                        {loading ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <motion.div
+                              animate={{ rotate: 360 }}
+                              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                              className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
+                            />
+                            Signing In...
+                          </span>
+                        ) : (
+                          'Sign In'
+                        )}
+                      </motion.button>
+                    </motion.form>
                 ) : (
                   <div className="space-y-4 sm:space-y-6">
                     {/* Forgot Password Header */}
@@ -664,9 +733,10 @@ export default function Login() {
               <button
                 type="button"
                               onClick={() => setShowNewPassword(!showNewPassword)}
-                              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors duration-200 flex items-center justify-center"
+                              style={{ minHeight: '44px', minWidth: '44px' }}
               >
-                              {showNewPassword ? "👁️" : "👁️‍🗨️"}
+                              {showNewPassword ? <EyeOff className="w-5 h-5 stroke-[1.5]" /> : <Eye className="w-5 h-5 stroke-[1.5]" />}
               </button>
             </div>
                         </div>
@@ -688,9 +758,10 @@ export default function Login() {
               <button
                 type="button"
                               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors duration-200 flex items-center justify-center"
+                              style={{ minHeight: '44px', minWidth: '44px' }}
               >
-                              {showConfirmPassword ? "👁️" : "👁️‍🗨️"}
+                              {showConfirmPassword ? <EyeOff className="w-5 h-5 stroke-[1.5]" /> : <Eye className="w-5 h-5 stroke-[1.5]" />}
               </button>
             </div>
                         </div>
@@ -707,31 +778,11 @@ export default function Login() {
               </div>
             )}
           </div>
+              </motion.div>
         </div>
           </div>
-          </div>
-        </div>
+        </motion.div>
       </div>
-
-      <style jsx>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-10px); }
-        }
-        .animate-float {
-          animation: float 3s ease-in-out infinite;
-        }
-        .animation-delay-1000 {
-          animation-delay: 1s;
-        }
-        .animation-delay-2000 {
-          animation-delay: 2s;
-        }
-        .animation-delay-3000 {
-          animation-delay: 3s;
-        }
-      `}</style>
     </div>
-    </>
   );
 }

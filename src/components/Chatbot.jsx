@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Spline from '@splinetool/react-spline';
 
 const Chatbot = () => {
   const navigate = useNavigate();
@@ -21,10 +20,10 @@ const Chatbot = () => {
   }, []);
 
   useEffect(() => {
-    // Set initial position based on screen size
+    // Set initial position based on screen size - bottom right
     if (isMobile) {
       setPosition({ 
-        x: window.innerWidth - 100, 
+        x: window.innerWidth - 120, 
         y: window.innerHeight - 120 
       });
     }
@@ -97,26 +96,24 @@ const Chatbot = () => {
         width: chatbotWidth,
         height: chatbotHeight,
         backgroundColor: 'transparent',
-        bottom: isMobile ? 'auto' : '2rem',
-        right: isMobile ? 'auto' : '1rem',
-        left: isMobile ? `${position.x}px` : 'auto',
-        top: isMobile ? `${position.y}px` : 'auto',
+        bottom: '-1rem',
+        right: '-4rem',
         userSelect: 'none',
         WebkitUserSelect: 'none',
         WebkitTouchCallout: 'none'
       }}
     >
-      <Spline
-        scene="https://prod.spline.design/vZcNPvy5-bMhs2LF/scene.splinecode"
+      <img
+        src="/chatbotsss.png"
+        alt="Chatbot"
         style={{
-          width: chatbotWidth,
-          height: chatbotHeight,
-          pointerEvents: 'none'
+          width: '100px',
+          height: '100%',
+          objectFit: 'contain'
         }}
       />
     </div>
   );
-};
+}
 
 export default Chatbot;
-
