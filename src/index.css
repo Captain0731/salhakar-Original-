@@ -5,6 +5,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Hide Spline branding/watermark */
+spline-viewer::part(branding){display:none!important;}
+
 /* Hide scrollbars but keep scrolling functionality */
 .scrollbar-hide {
   -ms-overflow-style: none;  /* Internet Explorer 10+ */

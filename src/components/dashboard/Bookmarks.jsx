@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Bookmark, 
-  BookmarkPlus, 
   Folder, 
   FolderPlus, 
   FileText, 
@@ -41,15 +40,6 @@ const Bookmarks = () => {
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [currentFolder, setCurrentFolder] = useState(null);
-  const [showAddBookmark, setShowAddBookmark] = useState(false);
-  const [newBookmark, setNewBookmark] = useState({
-    title: '',
-    description: '',
-    url: '',
-    type: 'judgment',
-    tags: [],
-    folderId: null
-  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [pagination, setPagination] = useState({
@@ -542,38 +532,6 @@ const Bookmarks = () => {
     }
   };
 
-  const handleAddBookmark = async () => {
-    if (newBookmark.title && newBookmark.url) {
-      try {
-        const bookmarkData = {
-          title: newBookmark.title,
-          description: newBookmark.description,
-          url: newBookmark.url,
-          type: newBookmark.type,
-          tags: newBookmark.tags,
-          folder_id: newBookmark.folderId
-        };
-        
-        await apiService.addBookmark(bookmarkData);
-        
-        // Reload bookmarks to show the new one
-        await loadBookmarks();
-        
-        setNewBookmark({
-          title: '',
-          description: '',
-          url: '',
-          type: 'judgment',
-          tags: [],
-          folderId: null
-        });
-        setShowAddBookmark(false);
-      } catch (err) {
-        setError(err.message || 'Failed to add bookmark');
-        console.error('Error adding bookmark:', err);
-      }
-    }
-  };
 
   const handleDeleteBookmark = async (bookmark) => {
     try {
@@ -745,14 +703,6 @@ const Bookmarks = () => {
           </div>
           
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:space-x-3 sm:gap-0">
-            <button
-              onClick={() => setShowAddBookmark(true)}
-              className="flex items-center justify-center px-3 sm:px-4 py-2 sm:py-2.5 text-white rounded-lg transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 font-medium text-xs sm:text-sm w-full sm:w-auto"
-              style={{ backgroundColor: '#1E65AD', fontFamily: 'Roboto, sans-serif' }}
-            >
-              <BookmarkPlus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
-              Add Bookmark
-            </button>
             <button
               onClick={() => setShowCreateFolder(true)}
               className="flex items-center justify-center px-3 sm:px-4 py-2 sm:py-2.5 text-white rounded-lg transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 font-medium text-xs sm:text-sm w-full sm:w-auto"
@@ -1156,17 +1106,8 @@ const Bookmarks = () => {
             </div>
             <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-1.5 sm:mb-2" style={{ fontFamily: 'Helvetica Hebrew Bold, sans-serif' }}>No bookmarks found</h3>
             <p className="text-gray-500 text-xs sm:text-sm mb-3 sm:mb-4" style={{ fontFamily: 'Roboto, sans-serif' }}>
-              {searchQuery ? 'Try adjusting your search criteria' : 'Start by adding some bookmarks'}
+              {searchQuery ? 'Try adjusting your search criteria' : 'Start by bookmarking items from the legal library'}
             </p>
-            {!searchQuery && (
-              <button
-                onClick={() => setShowAddBookmark(true)}
-                className="px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs sm:text-sm font-medium"
-                style={{ fontFamily: 'Roboto, sans-serif' }}
-              >
-                Add Your First Bookmark
-              </button>
-            )}
           </div>
         ) : (
           <>
@@ -1504,129 +1445,6 @@ const Bookmarks = () => {
         </div>
       )}
 
-      {/* Add Bookmark Modal */}
-      {showAddBookmark && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Add New Bookmark</h3>
-            
-            <div className="space-y-3 sm:space-y-4">
-              <div>
-                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
-                  Title
-                </label>
-                <input
-                  type="text"
-                  value={newBookmark.title}
-                  onChange={(e) => setNewBookmark(prev => ({ ...prev, title: e.target.value }))}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter bookmark title"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
-                  Description
-                </label>
-                <textarea
-                  value={newBookmark.description}
-                  onChange={(e) => setNewBookmark(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  rows="3"
-                  placeholder="Enter bookmark description"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
-                  URL
-                </label>
-                <input
-                  type="url"
-                  value={newBookmark.url}
-                  onChange={(e) => setNewBookmark(prev => ({ ...prev, url: e.target.value }))}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter URL"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
-                  Type
-                </label>
-                <select
-                  value={newBookmark.type}
-                  onChange={(e) => setNewBookmark(prev => ({ ...prev, type: e.target.value }))}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="judgment">Judgment</option>
-                  <option value="act">Act</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
-                  Tags (comma-separated)
-                </label>
-                <input
-                  type="text"
-                  value={newBookmark.tags.join(', ')}
-                  onChange={(e) => setNewBookmark(prev => ({ 
-                    ...prev, 
-                    tags: e.target.value.split(',').map(tag => tag.trim()).filter(tag => tag)
-                  }))}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter tags separated by commas"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
-                  Folder
-                </label>
-                <select
-                  value={newBookmark.folderId || ''}
-                  onChange={(e) => setNewBookmark(prev => ({ ...prev, folderId: e.target.value ? parseInt(e.target.value) : null }))}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">No folder</option>
-                  {folders.map((folder) => (
-                    <option key={folder.id} value={folder.id}>
-                      {folder.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row justify-end gap-2 sm:space-x-3 sm:gap-0 mt-4 sm:mt-6">
-              <button
-                onClick={() => {
-                  setShowAddBookmark(false);
-                  setNewBookmark({
-                    title: '',
-                    description: '',
-                    url: '',
-                    type: 'judgment',
-                    tags: [],
-                    folderId: null
-                  });
-                }}
-                className="px-3 sm:px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 w-full sm:w-auto"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddBookmark}
-                className="px-3 sm:px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 w-full sm:w-auto"
-              >
-                Add Bookmark
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );
