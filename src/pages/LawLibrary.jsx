@@ -7,6 +7,7 @@ import { useInfiniteScroll } from "../hooks/useInfiniteScroll";
 import { SkeletonGrid, SmoothTransitionWrapper } from "../components/EnhancedLoadingComponents";
 import { InfiniteScrollLoader } from "../components/LoadingComponents";
 import { useAuth } from "../contexts/AuthContext";
+import { useURLFilters } from "../hooks/useURLFilters";
 
 // Add custom CSS animations
 const customStyles = `
@@ -76,6 +77,7 @@ export default function LawLibrary() {
   const [activeSection, setActiveSection] = useState(getInitialSection);
   const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  
   // Initialize filters based on active section
   const getInitialFilters = (section) => {
     if (section === "central") {
@@ -98,7 +100,38 @@ export default function LawLibrary() {
     }
   };
 
-  const [filters, setFilters] = useState(getInitialFilters(getInitialSection()));
+  // Use URL-persisted filters hook
+  const [filters, setFilters, clearFilters] = useURLFilters(
+    getInitialFilters(getInitialSection()),
+    { replace: false, syncOnMount: true }
+  );
+  
+  // Update filters when section changes
+  useEffect(() => {
+    const newFilters = getInitialFilters(activeSection);
+    // Only update if section-specific filters are different
+    const currentFilters = filters;
+    const needsUpdate = Object.keys(newFilters).some(key => {
+      if (activeSection === "central") {
+        // For central, remove state-specific filters
+        return key === 'state' || key === 'act_number';
+      } else {
+        // For state, remove central-specific filters
+        return key === 'act_id' || key === 'ministry' || key === 'type';
+      }
+    });
+    
+    if (needsUpdate) {
+      // Merge existing filters with new defaults, preserving common filters
+      const mergedFilters = { ...newFilters };
+      Object.keys(currentFilters).forEach(key => {
+        if (newFilters.hasOwnProperty(key) && currentFilters[key]) {
+          mergedFilters[key] = currentFilters[key];
+        }
+      });
+      setFilters(mergedFilters);
+    }
+  }, [activeSection]); // Only run when section changes
   const [acts, setActs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
@@ -142,6 +175,13 @@ export default function LawLibrary() {
       setSearchQuery(value);
     }
   };
+  
+  // Update searchQuery when filters.search changes (e.g., from URL)
+  useEffect(() => {
+    if (filters.search !== undefined) {
+      setSearchQuery(filters.search);
+    }
+  }, [filters.search]);
 
   const fetchActs = useCallback(async (loadMore = false, customFilters = null) => {
     if (isSearching && !loadMore) {
@@ -320,7 +360,7 @@ export default function LawLibrary() {
     return () => clearTimeout(timeoutId);
   }, [filters, showFilters]);
 
-  const clearFilters = () => {
+  const handleClearFilters = () => {
     const emptyFilters = getInitialFilters(activeSection);
     setFilters(emptyFilters);
     setSearchQuery('');
@@ -427,19 +467,17 @@ export default function LawLibrary() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search]);
 
-  // Reload data when section changes
+  // Reload data when section changes (but preserve URL filters)
   useEffect(() => {
     setActs([]);
     setPagination(null);
     setError(null);
     setSearchInfo(null);
-    // Highlights are always enabled for searches, no reset needed
-    const emptyFilters = getInitialFilters(activeSection);
-    setFilters(emptyFilters);
-    setSearchQuery('');
+    // Don't clear filters on section change - let URL filters persist
+    // Filters will be automatically filtered by section-specific fields in fetchActs
     if (fetchActsRef.current) {
       setTimeout(() => {
-        fetchActsRef.current(false, emptyFilters);
+        fetchActsRef.current(false);
       }, 100);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -817,7 +855,7 @@ export default function LawLibrary() {
                   </motion.button>
                   
                   <motion.button
-                    onClick={clearFilters}
+                    onClick={handleClearFilters}
                     disabled={loading}
                     whileHover={{ scale: loading ? 1 : 1.02 }}
                     whileTap={{ scale: loading ? 1 : 0.98 }}
@@ -1000,7 +1038,7 @@ export default function LawLibrary() {
                   return val !== '';
                 }) && (
                   <button
-                    onClick={clearFilters}
+                    onClick={handleClearFilters}
                     className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
                     style={{ fontFamily: 'Roboto, sans-serif' }}
                   >

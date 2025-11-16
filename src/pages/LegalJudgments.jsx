@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "../components/landing/Navbar";
 import apiService from "../services/api";
+import { useURLFilters } from "../hooks/useURLFilters";
 import { 
   EnhancedJudgmentSkeleton, 
   SkeletonGrid,
@@ -92,6 +93,7 @@ if (typeof document !== 'undefined') {
 
 export default function LegalJudgments() {
   const navigate = useNavigate();
+  const location = useLocation();
   const isMountedRef = useRef(true);
 
   // Court type state - defaults to highcourt
@@ -114,18 +116,6 @@ export default function LegalJudgments() {
   const isFetchingRef = useRef(false);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
   const scrollTimeoutRef = useRef(null);
-
-  // Filter states - will change based on court type
-  const [filters, setFilters] = useState({
-    search: '',
-    title: '',
-    cnr: '',
-    highCourt: '',
-    judge: '',
-    petitioner: '',
-    respondent: '',
-    decisionDateFrom: ''
-  });
 
   const pageSize = 10; // Increased to show more judgments per load
 
@@ -153,9 +143,24 @@ export default function LegalJudgments() {
     }
   };
 
-  // Reset filters when court type changes
+  // Use URL-persisted filters hook
+  const [filters, setFilters, clearFilters] = useURLFilters(
+    getFilterFields(),
+    { replace: false, syncOnMount: true }
+  );
+
+  // Update filters when court type changes (preserve common filters)
   useEffect(() => {
-    setFilters(getFilterFields());
+    const newFilterFields = getFilterFields();
+    // Merge existing filters with new defaults, preserving common filters
+    const mergedFilters = { ...newFilterFields };
+    Object.keys(filters).forEach(key => {
+      if (newFilterFields.hasOwnProperty(key) && filters[key]) {
+        mergedFilters[key] = filters[key];
+      }
+    });
+    setFilters(mergedFilters);
+    
     setJudgments([]);
     setNextCursor(null);
     setHasMore(true);
@@ -383,8 +388,9 @@ export default function LegalJudgments() {
     }));
   };
 
-  const clearFilters = () => {
-    setFilters(getFilterFields());
+  const handleClearFilters = () => {
+    const emptyFilters = getFilterFields();
+    setFilters(emptyFilters);
     setJudgments([]);
     setHasMore(true);
     setNextCursor(null);
@@ -920,7 +926,7 @@ export default function LegalJudgments() {
               <motion.button
                 onClick={() => {
                   console.log('Clear Filters clicked');
-                  clearFilters();
+                  handleClearFilters();
                 }}
                 disabled={loading || isFetchingRef.current}
                 whileHover={{ scale: loading || isFetchingRef.current ? 1 : 1.02 }}

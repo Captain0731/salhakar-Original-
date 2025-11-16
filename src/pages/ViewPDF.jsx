@@ -594,7 +594,7 @@ export default function ViewPDF() {
                               ></div>
                               <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
                                 <button
-                                  onClick={() => {
+                                  onClick={async () => {
                                     // If user is not logged in, redirect to login page
                                     if (!isUserAuthenticated) {
                                       navigate('/login');
@@ -603,13 +603,34 @@ export default function ViewPDF() {
                                     }
                                     // If logged in, allow download
                                     if (pdfUrl) {
-                                      const link = document.createElement('a');
-                                      link.href = pdfUrl;
-                                      link.download = `${judgmentInfo?.title || 'judgment'}_original.pdf`;
-                                      link.target = '_blank';
-                                      document.body.appendChild(link);
-                                      link.click();
-                                      document.body.removeChild(link);
+                                      try {
+                                        // Fetch PDF as blob to force download
+                                        const response = await fetch(pdfUrl, {
+                                          headers: {
+                                            'ngrok-skip-browser-warning': 'true'
+                                          }
+                                        });
+                                        
+                                        if (!response.ok) {
+                                          throw new Error('Failed to fetch PDF');
+                                        }
+                                        
+                                        const blob = await response.blob();
+                                        const blobUrl = window.URL.createObjectURL(blob);
+                                        
+                                        const link = document.createElement('a');
+                                        link.href = blobUrl;
+                                        link.download = `${judgmentInfo?.title || 'judgment'}_original.pdf`.replace(/[^a-z0-9]/gi, '_');
+                                        document.body.appendChild(link);
+                                        link.click();
+                                        document.body.removeChild(link);
+                                        
+                                        // Clean up blob URL
+                                        window.URL.revokeObjectURL(blobUrl);
+                                      } catch (error) {
+                                        console.error('Download error:', error);
+                                        alert('Failed to download PDF. Please try again.');
+                                      }
                                     } else {
                                       alert('Original PDF not available');
                                     }

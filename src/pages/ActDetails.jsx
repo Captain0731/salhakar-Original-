@@ -469,22 +469,148 @@ export default function ActDetails() {
                               ></div>
                               <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
                                 <button
-                                  onClick={() => {
+                                  onClick={async () => {
                                     if (!isUserAuthenticated) {
                                       navigate('/login');
                                       setShowDownloadDropdown(false);
                                       return;
                                     }
-                                    if (act.pdf_url) {
+                                    
+                                    // Check for PDF URL - try both pdf_url and pdf_link
+                                    const pdfUrl = act?.pdf_url || act?.pdf_link;
+                                    
+                                    if (!pdfUrl || pdfUrl.trim() === '') {
+                                      alert('Original PDF not available');
+                                      setShowDownloadDropdown(false);
+                                      return;
+                                    }
+                                    
+                                    try {
+                                      console.log('Downloading Original PDF from:', pdfUrl);
+                                      
+                                      // Get authentication token if available
+                                      const token = localStorage.getItem('access_token') || 
+                                                   localStorage.getItem('accessToken') || 
+                                                   localStorage.getItem('token');
+                                      
+                                      // Prepare headers
+                                      const headers = {
+                                        'ngrok-skip-browser-warning': 'true',
+                                        'Accept': 'application/pdf'
+                                      };
+                                      
+                                      // Add authentication if token is available
+                                      if (token) {
+                                        headers['Authorization'] = `Bearer ${token}`;
+                                      }
+                                      
+                                      // Try to fetch PDF as blob
+                                      let response;
+                                      try {
+                                        response = await fetch(pdfUrl, {
+                                          method: 'GET',
+                                          headers: headers,
+                                          mode: 'cors',
+                                          credentials: 'include'
+                                        });
+                                      } catch (fetchError) {
+                                        // If fetch fails, try opening directly as fallback
+                                        console.warn('Fetch failed, trying direct download:', fetchError);
+                                        const link = document.createElement('a');
+                                        link.href = pdfUrl;
+                                        link.download = `${act?.short_title || act?.long_title || 'act'}_original.pdf`.replace(/[^a-z0-9]/gi, '_');
+                                        link.target = '_blank';
+                                        link.rel = 'noopener noreferrer';
+                                        document.body.appendChild(link);
+                                        link.click();
+                                        document.body.removeChild(link);
+                                        setShowDownloadDropdown(false);
+                                        return;
+                                      }
+                                      
+                                      if (!response.ok) {
+                                        // If response is not OK, try direct download as fallback
+                                        console.warn('Response not OK, trying direct download. Status:', response.status);
+                                        const link = document.createElement('a');
+                                        link.href = pdfUrl;
+                                        link.download = `${act?.short_title || act?.long_title || 'act'}_original.pdf`.replace(/[^a-z0-9]/gi, '_');
+                                        link.target = '_blank';
+                                        link.rel = 'noopener noreferrer';
+                                        document.body.appendChild(link);
+                                        link.click();
+                                        document.body.removeChild(link);
+                                        setShowDownloadDropdown(false);
+                                        return;
+                                      }
+                                      
+                                      // Check if response is actually a PDF
+                                      const contentType = response.headers.get('content-type');
+                                      if (!contentType || !contentType.includes('application/pdf')) {
+                                        console.warn('Response is not a PDF, content-type:', contentType);
+                                      }
+                                      
+                                      const blob = await response.blob();
+                                      
+                                      // Verify blob is not empty
+                                      if (blob.size === 0) {
+                                        throw new Error('Downloaded PDF is empty');
+                                      }
+                                      
+                                      console.log('PDF blob size:', blob.size, 'bytes');
+                                      
+                                      const blobUrl = window.URL.createObjectURL(blob);
+                                      
                                       const link = document.createElement('a');
-                                      link.href = act.pdf_url;
+                                      link.href = blobUrl;
                                       link.download = `${act?.short_title || act?.long_title || 'act'}_original.pdf`.replace(/[^a-z0-9]/gi, '_');
-                                      link.target = '_blank';
+                                      link.style.display = 'none';
+                                      
                                       document.body.appendChild(link);
                                       link.click();
-                                      document.body.removeChild(link);
-                                    } else {
-                                      alert('Original PDF not available');
+                                      
+                                      // Wait a bit before removing to ensure download starts
+                                      setTimeout(() => {
+                                        document.body.removeChild(link);
+                                        // Clean up blob URL
+                                        window.URL.revokeObjectURL(blobUrl);
+                                      }, 100);
+                                      
+                                      console.log('PDF download initiated successfully');
+                                    } catch (error) {
+                                      console.error('Download error details:', error);
+                                      console.error('Error message:', error.message);
+                                      
+                                      // Last resort: try direct download
+                                      try {
+                                        console.log('Attempting direct download as fallback...');
+                                        const link = document.createElement('a');
+                                        link.href = pdfUrl;
+                                        link.download = `${act?.short_title || act?.long_title || 'act'}_original.pdf`.replace(/[^a-z0-9]/gi, '_');
+                                        link.target = '_blank';
+                                        link.rel = 'noopener noreferrer';
+                                        document.body.appendChild(link);
+                                        link.click();
+                                        document.body.removeChild(link);
+                                        console.log('Direct download fallback initiated');
+                                      } catch (fallbackError) {
+                                        console.error('Fallback download also failed:', fallbackError);
+                                        
+                                        // Provide more specific error message
+                                        let errorMessage = 'Failed to download PDF. ';
+                                        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                                          errorMessage += 'Network error. The PDF will open in a new tab instead.';
+                                          // Open in new tab as last resort
+                                          window.open(pdfUrl, '_blank', 'noopener,noreferrer');
+                                        } else if (error.message.includes('HTTP error')) {
+                                          errorMessage += `Server error: ${error.message}`;
+                                        } else if (error.message.includes('empty')) {
+                                          errorMessage += 'The PDF file appears to be empty.';
+                                        } else {
+                                          errorMessage += error.message || 'Please try again.';
+                                        }
+                                        
+                                        alert(errorMessage);
+                                      }
                                     }
                                     setShowDownloadDropdown(false);
                                   }}
@@ -1191,7 +1317,7 @@ export default function ActDetails() {
                       }}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      className={`flex-1 sm:flex-none px-0.5 sm:px-4 md:px-5 lg:px-6 py-1 sm:py-1.5 md:py-2.5 rounded-md sm:rounded-lg font-semibold transition-all duration-300 relative z-10 text-[10px] sm:text-xs md:text-base text-center ${
+                      className={`flex-1 sm:flex-none px-2.5 sm:px-4 md:px-5 lg:px-6 py-1 sm:py-1.5 md:py-2 rounded-md sm:rounded-lg font-semibold transition-all duration-300 relative z-10 text-[10px] sm:text-xs md:text-base text-center ${
                         !showMarkdown
                           ? 'text-white'
                           : 'text-gray-600 hover:text-gray-800'
@@ -1212,7 +1338,7 @@ export default function ActDetails() {
                       }}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      className={`flex-1 text-center px-0.5 sm:flex-none px-2.5 sm:px-4 md:px-5 lg:px-6 py-1 sm:py-1.5 md:py-2.5 rounded-md sm:rounded-lg font-semibold transition-all duration-300 relative z-10 text-[10px] sm:text-xs md:text-base ${
+                      className={`flex-1 sm:flex-none px-2.5 sm:px-4 md:px-5 lg:px-6 py-1 sm:py-1.5 md:py-2 rounded-md sm:rounded-lg font-semibold transition-all duration-300 relative z-10 text-[10px] sm:text-xs md:text-base text-center ${
                         showMarkdown
                           ? 'text-white'
                           : 'text-gray-600 hover:text-gray-800'
@@ -1282,7 +1408,9 @@ export default function ActDetails() {
                             height: '100%',
                             overflowY: 'scroll',
                             position: 'relative',
-                            zIndex: 1
+                            zIndex: 1,
+                            display: 'flex',
+                            justifyContent: 'center'
                           }}
                         >
                           <style>
@@ -1315,8 +1443,10 @@ export default function ActDetails() {
                             lineHeight: '1.9',
                             color: '#1a1a1a',
                             fontSize: '17px',
-                            maxWidth: '100%',
-                            padding: '0',
+                            maxWidth: '900px',
+                            width: '100%',
+                            padding: '2rem 3rem',
+                            margin: '0 auto',
                             letterSpacing: '0.01em'
                           }}>
                             <ReactMarkdown
