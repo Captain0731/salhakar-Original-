@@ -290,6 +290,19 @@ export default function ActDetails() {
     fetchActData();
   }, [id, location.state, navigate]);
 
+  // Helper function to extract only the title from note content
+  const extractTitleOnly = (content) => {
+    if (!content) return '';
+    // Extract the first line that starts with #
+    const lines = content.split('\n');
+    const titleLine = lines.find(line => line.trim().startsWith('#'));
+    if (titleLine) {
+      return titleLine.trim();
+    }
+    // If no title found, return just the first line or empty
+    return lines[0]?.trim() || '';
+  };
+
   // Load saved notes from localStorage when act changes
   useEffect(() => {
     if (act && act.id) {
@@ -299,9 +312,16 @@ export default function ActDetails() {
         try {
           const parsedFolders = JSON.parse(savedNotes);
           if (parsedFolders && Array.isArray(parsedFolders) && parsedFolders.length > 0) {
-            setNotesFolders(parsedFolders);
-            setActiveFolderId(parsedFolders[0].id);
-            setNotesContent(parsedFolders[0].content || '');
+            // Clean up existing notes to only show title
+            const cleanedFolders = parsedFolders.map(folder => ({
+              ...folder,
+              content: extractTitleOnly(folder.content)
+            }));
+            setNotesFolders(cleanedFolders);
+            setActiveFolderId(cleanedFolders[0].id);
+            setNotesContent(cleanedFolders[0].content || '');
+            // Update localStorage with cleaned content
+            localStorage.setItem(notesKey, JSON.stringify(cleanedFolders));
           }
         } catch (error) {
           console.error('Error loading saved notes:', error);
@@ -309,6 +329,23 @@ export default function ActDetails() {
       }
     }
   }, [act?.id]);
+
+  // Auto-open notes popup if requested via navigation state
+  useEffect(() => {
+    if (location.state?.openNotes && act && isUserAuthenticated) {
+      // Initialize with ONLY the title
+      const initialContent = `# ${act?.short_title || act?.long_title || 'Untitled Note'}`;
+      setNotesContent(initialContent);
+      setActiveFolderId('default');
+      setShowNotesPopup(true);
+      
+      // Clear the openNotes flag from location state to prevent reopening on re-renders
+      if (location.state) {
+        delete location.state.openNotes;
+        delete location.state.noteId;
+      }
+    }
+  }, [location.state?.openNotes, act, isUserAuthenticated]);
 
   // Fetch markdown content when markdown view is selected
   useEffect(() => {
@@ -1270,19 +1307,20 @@ export default function ActDetails() {
                         if (!savedNotes) {
                           // Initialize notes content with act data for default folder
                           // Only include description if it exists, otherwise skip that line
-                          const descriptionLine = act?.description ? `${act.description}\n\n` : '';
-                          const initialContent = `# ${act?.short_title || act?.long_title || 'Untitled Note'}\n\n${descriptionLine}`.trim();
+                          // const descriptionLine = act?.description ? `${act.description}\n\n` : '';
+                          const initialContent = `# ${act?.short_title || act?.long_title || 'Untitled Note'}`.trim();
                           
                           // Initialize folders if empty
                           if (notesFolders.length === 0 || (notesFolders.length === 1 && notesFolders[0].content === '')) {
-                            setNotesFolders([{ id: 'default', name: 'Default', content: initialContent }]);
-                            setActiveFolderId('default');
+                            // setNotesFolders([{ id: 'default', name: 'Default', content: initialContent }]);
+                            // setActiveFolderId('default');
                             setNotesContent(initialContent);
                           }
                         } else {
-                          // Load existing content
+                          // Load existing content - extract only title
                           const currentFolder = notesFolders.find(f => f.id === activeFolderId);
-                          setNotesContent(currentFolder?.content || '');
+                          const cleanedContent = extractTitleOnly(currentFolder?.content || '');
+                          setNotesContent(cleanedContent);
                         }
                         
                         setShowNotesPopup(true);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
@@ -58,6 +58,7 @@ export default function ViewPDF() {
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
   const [showDownloadDropdown, setShowDownloadDropdown] = useState(false);
+  const notesOpenedRef = useRef(false);
   
   // Summary popup state
   const [summaryPopupOpen, setSummaryPopupOpen] = useState(false);
@@ -397,6 +398,53 @@ export default function ViewPDF() {
 
     loadNotes();
   }, [judgmentInfo?.id, judgmentInfo?.act_id, isUserAuthenticated]);
+
+  // Reset notes opened flag when judgment changes
+  useEffect(() => {
+    notesOpenedRef.current = false;
+  }, [judgmentInfo?.id, judgmentInfo?.act_id]);
+
+  // Auto-open notes popup if requested via navigation state
+  useEffect(() => {
+    const shouldOpenNotes = location.state?.openNotes;
+    if (shouldOpenNotes && !notesOpenedRef.current && judgmentInfo && !loadingNotes && isUserAuthenticated) {
+      const noteId = location.state?.noteId;
+      
+      // If a specific note ID is provided, load that note
+      if (noteId && existingNotes.length > 0) {
+        const noteToOpen = existingNotes.find(note => note.id === noteId);
+        if (noteToOpen) {
+          setActiveNoteId(noteToOpen.id);
+          setNotesContent(noteToOpen.content || '');
+          setActiveFolderId(noteToOpen.folder_id || null);
+          setShowNotesPopup(true);
+          notesOpenedRef.current = true;
+          return;
+        }
+      }
+      
+      // Otherwise, open the first note or create a new one
+      if (existingNotes.length > 0) {
+        const firstNote = existingNotes[0];
+        setActiveNoteId(firstNote.id);
+        setNotesContent(firstNote.content || '');
+        setActiveFolderId(firstNote.folder_id || null);
+      } else {
+        // Initialize with default content for new note
+        const refInfo = getReferenceInfo();
+        if (refInfo) {
+          const summaryLine = judgmentInfo?.summary ? `${judgmentInfo.summary}\n\n` : '';
+          const initialContent = `# ${judgmentInfo?.title || judgmentInfo?.short_title || 'Untitled Note'}\n\n${summaryLine}`.trim();
+          setNotesContent(initialContent);
+          setActiveNoteId(null);
+          setActiveFolderId(null);
+        }
+      }
+      
+      setShowNotesPopup(true);
+      notesOpenedRef.current = true;
+    }
+  }, [judgmentInfo, existingNotes, loadingNotes, isUserAuthenticated, location.state]);
 
   // Load user folders from API
   useEffect(() => {

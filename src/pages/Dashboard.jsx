@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Home, 
   Download, 
@@ -7,7 +8,6 @@ import {
   FileText as Note,
   Menu, 
   X, 
-  Search,
   ChevronRight,
   FileText,
   Clock,
@@ -17,9 +17,6 @@ import {
   Award,
   BarChart3,
   Plus,
-  Filter,
-  Grid,
-  List,
   Eye,
   Share2,
   MoreVertical
@@ -32,17 +29,14 @@ import apiService from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
   const [activeTab, setActiveTab] = useState('home');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [bookmarks, setBookmarks] = useState([]);
   const [bookmarksLoading, setBookmarksLoading] = useState(false);
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    console.log('Searching for:', searchQuery);
-  };
+  const [notesCount, setNotesCount] = useState(0);
+  const [notesLoading, setNotesLoading] = useState(false);
 
   // Clear bookmarks when user changes or logs out
   useEffect(() => {
@@ -83,6 +77,39 @@ const Dashboard = () => {
       setBookmarks([]);
     }
   }, [isAuthenticated, activeTab, user?.id]); // Add user.id dependency to reload when user changes
+
+  // Load notes count for dashboard
+  useEffect(() => {
+    const loadNotesCount = async () => {
+      if (!isAuthenticated || !user) {
+        setNotesCount(0);
+        return;
+      }
+      
+      setNotesLoading(true);
+      try {
+        const response = await apiService.getNotes({ limit: 1 });
+        if (response.success && response.data?.pagination) {
+          setNotesCount(response.data.pagination.total || 0);
+        } else if (Array.isArray(response)) {
+          setNotesCount(response.length);
+        } else {
+          setNotesCount(0);
+        }
+      } catch (err) {
+        console.error('Error loading notes count for dashboard:', err);
+        setNotesCount(0);
+      } finally {
+        setNotesLoading(false);
+      }
+    };
+
+    if (activeTab === 'home' && isAuthenticated && user) {
+      loadNotesCount();
+    } else {
+      setNotesCount(0);
+    }
+  }, [isAuthenticated, activeTab, user?.id]);
 
   // Helper to get bookmark title
   const getBookmarkTitle = (bookmark) => {
@@ -145,26 +172,6 @@ const Dashboard = () => {
                     Legal research overview
                   </p>
                 </div>
-                <div className="flex items-center gap-2 sm:space-x-3">
-                  <div className="relative flex-1 sm:flex-initial">
-                    <Search className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Search documents..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleSearch(e)}
-                      className="pl-8 sm:pl-10 pr-3 sm:pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors w-full sm:w-64 bg-white text-xs sm:text-sm"
-                      style={{ fontFamily: 'Roboto, sans-serif' }}
-                    />
-                  </div>
-                  <button className="p-2 sm:p-2 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200 flex-shrink-0">
-                    <Filter className="h-4 w-4 sm:h-5 sm:w-5 text-gray-600" />
-                  </button>
-                  <button className="p-2 sm:p-2 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200 flex-shrink-0 hidden sm:block">
-                    <Grid className="h-4 w-4 sm:h-5 sm:w-5 text-gray-600" />
-                  </button>
-                </div>
               </div>
             </div>
 
@@ -213,18 +220,25 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-4 sm:p-6 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+              <button
+                onClick={() => setActiveTab('notes')}
+                className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-4 sm:p-6 hover:shadow-lg transition-all duration-300 hover:-translate-y-1 w-full text-left cursor-pointer"
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 sm:mb-2 truncate" style={{ fontFamily: 'Roboto, sans-serif' }}>Notes</p>
-                    <p className="text-2xl sm:text-3xl font-bold mb-0.5 sm:mb-1" style={{ color: '#1E65AD', fontFamily: 'Helvetica Hebrew Bold, sans-serif' }}>0</p>
-                    <p className="text-xs sm:text-sm text-gray-500 font-medium truncate" style={{ fontFamily: 'Roboto, sans-serif' }}>No notes yet</p>
+                    <p className="text-2xl sm:text-3xl font-bold mb-0.5 sm:mb-1" style={{ color: '#1E65AD', fontFamily: 'Helvetica Hebrew Bold, sans-serif' }}>
+                      {notesLoading ? '...' : notesCount}
+                    </p>
+                    <p className="text-xs sm:text-sm text-gray-500 font-medium truncate" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      {notesCount > 0 ? 'View all notes' : 'No notes yet'}
+                    </p>
                   </div>
                   <div className="p-2 sm:p-3 rounded-lg sm:rounded-xl shadow-sm flex-shrink-0 ml-2" style={{ backgroundColor: '#1E65AD' }}>
                     <FileText className="h-4 w-4 sm:h-6 sm:w-6 text-white" />
                   </div>
                 </div>
-              </div>
+              </button>
             </div>
 
             {/* Professional Content Grid */}
@@ -273,49 +287,58 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              {/* Quick Actions */}
+              {/* Popular Resources */}
               <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 shadow-sm">
                 <div className="p-4 sm:p-5 border-b border-gray-200">
-                  <h2 className="text-base sm:text-lg font-semibold" style={{ color: '#1E65AD', fontFamily: 'Helvetica Hebrew Bold, sans-serif' }}>Quick Actions</h2>
+                  <h2 className="text-base sm:text-lg font-semibold" style={{ color: '#1E65AD', fontFamily: 'Helvetica Hebrew Bold, sans-serif' }}>Popular Resources</h2>
                 </div>
-                <div className="p-4 sm:p-5 space-y-2 sm:space-y-3">
-                  <button className="w-full flex items-center justify-between p-3 sm:p-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 group">
+                <div className="p-4 sm:p-5 space-y-3 sm:space-y-4">
+                  <button 
+                    onClick={() => navigate('/judgment-access')}
+                    className="w-full flex items-center justify-between p-3 sm:p-4 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-all duration-200 group"
+                  >
                     <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
                       <div className="p-2 sm:p-2.5 rounded-lg flex-shrink-0" style={{ backgroundColor: '#1E65AD' }}>
-                        <Plus className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                        <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                       </div>
                       <div className="text-left flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-medium text-gray-900 mb-0.5 truncate" style={{ fontFamily: 'Roboto, sans-serif' }}>Add New Document</p>
-                        <p className="text-xs text-gray-500 line-clamp-1" style={{ fontFamily: 'Roboto, sans-serif' }}>Upload or bookmark a legal document</p>
+                        <p className="text-xs sm:text-sm font-medium text-gray-900 mb-0.5 truncate" style={{ fontFamily: 'Roboto, sans-serif' }}>Legal Judgments</p>
+                        <p className="text-xs text-gray-500 line-clamp-1" style={{ fontFamily: 'Roboto, sans-serif' }}>Search High Court & Supreme Court judgments</p>
                       </div>
                     </div>
-                    <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-400 group-hover:text-gray-600 transition-colors flex-shrink-0 ml-2" />
+                    <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-400 group-hover:text-blue-600 transition-colors flex-shrink-0 ml-2" />
                   </button>
                   
-                  <button className="w-full flex items-center justify-between p-3 sm:p-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 group">
+                  <button 
+                    onClick={() => navigate('/law-library')}
+                    className="w-full flex items-center justify-between p-3 sm:p-4 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-all duration-200 group"
+                  >
                     <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
                       <div className="p-2 sm:p-2.5 rounded-lg flex-shrink-0" style={{ backgroundColor: '#CF9B63' }}>
-                        <CalendarIcon className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                        <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                       </div>
                       <div className="text-left flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-medium text-gray-900 mb-0.5 truncate" style={{ fontFamily: 'Roboto, sans-serif' }}>Schedule Event</p>
-                        <p className="text-xs text-gray-500 line-clamp-1" style={{ fontFamily: 'Roboto, sans-serif' }}>Add important dates and reminders</p>
+                        <p className="text-xs sm:text-sm font-medium text-gray-900 mb-0.5 truncate" style={{ fontFamily: 'Roboto, sans-serif' }}>Law Library</p>
+                        <p className="text-xs text-gray-500 line-clamp-1" style={{ fontFamily: 'Roboto, sans-serif' }}>Browse Central & State Acts</p>
                       </div>
                     </div>
-                    <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-400 group-hover:text-gray-600 transition-colors flex-shrink-0 ml-2" />
+                    <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-400 group-hover:text-blue-600 transition-colors flex-shrink-0 ml-2" />
                   </button>
                   
-                  <button className="w-full flex items-center justify-between p-3 sm:p-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 group">
+                  <button 
+                    onClick={() => navigate('/law-mapping')}
+                    className="w-full flex items-center justify-between p-3 sm:p-4 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-all duration-200 group"
+                  >
                     <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
                       <div className="p-2 sm:p-2.5 rounded-lg flex-shrink-0" style={{ backgroundColor: '#8C969F' }}>
-                        <Eye className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                        <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                       </div>
                       <div className="text-left flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-medium text-gray-900 mb-0.5 truncate" style={{ fontFamily: 'Roboto, sans-serif' }}>View Analytics</p>
-                        <p className="text-xs text-gray-500 line-clamp-1" style={{ fontFamily: 'Roboto, sans-serif' }}>Track your research progress</p>
+                        <p className="text-xs sm:text-sm font-medium text-gray-900 mb-0.5 truncate" style={{ fontFamily: 'Roboto, sans-serif' }}>Law Mapping</p>
+                        <p className="text-xs text-gray-500 line-clamp-1" style={{ fontFamily: 'Roboto, sans-serif' }}>Map IPC-BNS, IEA-BSA, CrPC-BNSS</p>
                       </div>
                     </div>
-                    <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-400 group-hover:text-gray-600 transition-colors flex-shrink-0 ml-2" />
+                    <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-400 group-hover:text-blue-600 transition-colors flex-shrink-0 ml-2" />
                   </button>
                 </div>
               </div>
@@ -354,12 +377,12 @@ const Dashboard = () => {
             <div className="p-4 sm:p-6 border-b border-gray-200">
               <div className="flex items-center justify-between mb-3 sm:mb-4">
                 <div className="flex items-center">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center mr-2 sm:mr-3" style={{ 
-                    background: 'linear-gradient(135deg, #1E65AD, #CF9B63)' 
-                  }}>
-                    <span className="text-white font-bold text-base sm:text-lg">S</span>
-                  </div>
-                  <span className="text-base sm:text-lg font-bold" style={{ color: '#1E65AD', fontFamily: 'Helvetica Hebrew Bold, sans-serif' }}>Salhakar</span>
+                  <img 
+                    src="/logo7.svg" 
+                    alt="Salhakar Logo" 
+                    className="h-10 w-auto sm:h-12 object-contain mr-2 sm:mr-3"
+                  />
+                  {/* <span className="text-base sm:text-lg font-bold" style={{ color: '#1E65AD', fontFamily: 'Helvetica Hebrew Bold, sans-serif' }}>Salhakar</span> */}
                 </div>
                 <button
                   onClick={() => setSidebarOpen(false)}

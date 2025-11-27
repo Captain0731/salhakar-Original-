@@ -66,6 +66,19 @@ export default function MappingDetails() {
     }
   }, [location.state, navigate]);
 
+  // Helper function to extract only the title from note content
+  const extractTitleOnly = (content) => {
+    if (!content) return '';
+    // Extract the first line that starts with #
+    const lines = content.split('\n');
+    const titleLine = lines.find(line => line.trim().startsWith('#'));
+    if (titleLine) {
+      return titleLine.trim();
+    }
+    // If no title found, return just the first line or empty
+    return lines[0]?.trim() || '';
+  };
+
   // Load saved notes from localStorage when mapping changes
   useEffect(() => {
     if (mapping && mapping.id) {
@@ -75,9 +88,16 @@ export default function MappingDetails() {
         try {
           const parsedFolders = JSON.parse(savedNotes);
           if (parsedFolders && Array.isArray(parsedFolders) && parsedFolders.length > 0) {
-            setNotesFolders(parsedFolders);
-            setActiveFolderId(parsedFolders[0].id);
-            setNotesContent(parsedFolders[0].content || '');
+            // Clean up existing notes to only show title
+            const cleanedFolders = parsedFolders.map(folder => ({
+              ...folder,
+              content: extractTitleOnly(folder.content)
+            }));
+            setNotesFolders(cleanedFolders);
+            setActiveFolderId(cleanedFolders[0].id);
+            setNotesContent(cleanedFolders[0].content || '');
+            // Update localStorage with cleaned content
+            localStorage.setItem(notesKey, JSON.stringify(cleanedFolders));
           }
         } catch (error) {
           console.error('Error loading saved notes:', error);
@@ -813,8 +833,8 @@ export default function MappingDetails() {
                         const savedNotes = localStorage.getItem(notesKey);
                         
                         if (!savedNotes) {
-                          // Initialize notes content with mapping data for default folder
-                          const initialContent = `# ${mapping?.subject || mapping?.title || 'Untitled Mapping Note'}\n\n${mapping?.summary || mapping?.description || 'No summary available.'}\n\n## Mapping Details\n\nSource: ${sourceSection || 'N/A'}\nTarget: ${targetSection || 'N/A'}\nType: ${mappingInfo.title}`;
+                          // Initialize notes content with ONLY the title
+                          const initialContent = `# ${mapping?.subject || mapping?.title || 'Untitled Mapping Note'}`;
                           
                           // Initialize folders if empty
                           if (notesFolders.length === 0 || (notesFolders.length === 1 && notesFolders[0].content === '')) {
@@ -823,9 +843,10 @@ export default function MappingDetails() {
                             setNotesContent(initialContent);
                           }
                         } else {
-                          // Load existing content
+                          // Load existing content - extract only title
                           const currentFolder = notesFolders.find(f => f.id === activeFolderId);
-                          setNotesContent(currentFolder?.content || '');
+                          const cleanedContent = extractTitleOnly(currentFolder?.content || '');
+                          setNotesContent(cleanedContent);
                         }
                         
                         setShowNotesPopup(true);
@@ -1245,30 +1266,19 @@ export default function MappingDetails() {
         </div>
       </div>
 
-      {/* Notes Popup - Mobile Optimized */}
+      {/* Draggable Notes Popup */}
       {showNotesPopup && (
         <>
           {/* Backdrop */}
           <div 
-            className="fixed inset-0 bg-black bg-opacity-50 z-40 backdrop-blur-sm"
+            className="fixed inset-0 bg-black bg-opacity-30 z-40"
             onClick={() => setShowNotesPopup(false)}
           />
           
-          {/* Popup - Mobile: Bottom Sheet, Desktop: Draggable */}
+          {/* Draggable Popup */}
           <div
-            className={`fixed bg-white shadow-2xl z-50 flex flex-col ${
-              isMobile ? 'rounded-t-2xl sm:rounded-lg' : 'rounded-lg'
-            }`}
-            style={isMobile ? {
-              left: '0',
-              right: '0',
-              bottom: '0',
-              top: '10%',
-              maxHeight: '90vh',
-              minHeight: '400px',
-              fontFamily: 'Roboto, sans-serif',
-              boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.15)'
-            } : {
+            className="fixed bg-white rounded-lg shadow-2xl z-50 flex flex-col"
+            style={{
               left: `${popupPosition.x}px`,
               top: `${popupPosition.y}px`,
               width: `${popupSize.width}px`,
@@ -1280,8 +1290,7 @@ export default function MappingDetails() {
               fontFamily: 'Roboto, sans-serif',
               userSelect: isDragging || isResizing ? 'none' : 'auto'
             }}
-            onClick={(e) => e.stopPropagation()}
-            onMouseDown={!isMobile ? (e) => {
+            onMouseDown={(e) => {
               // Only start dragging if clicking on the header
               if (e.target.closest('.notes-popup-header')) {
                 setIsDragging(true);
@@ -1291,8 +1300,8 @@ export default function MappingDetails() {
                   y: e.clientY - rect.top
                 });
               }
-            } : undefined}
-            onMouseMove={!isMobile ? (e) => {
+            }}
+            onMouseMove={(e) => {
               if (isDragging) {
                 const newX = e.clientX - dragOffset.x;
                 const newY = e.clientY - dragOffset.y;
@@ -1325,275 +1334,243 @@ export default function MappingDetails() {
                   y: Math.min(prev.y, maxY)
                 }));
               }
-            } : undefined}
-            onMouseUp={!isMobile ? () => {
+            }}
+            onMouseUp={() => {
               setIsDragging(false);
               setIsResizing(false);
-            } : undefined}
-            onMouseLeave={!isMobile ? () => {
+            }}
+            onMouseLeave={() => {
               setIsDragging(false);
               setIsResizing(false);
-            } : undefined}
+            }}
           >
-            {/* Header */}
+            {/* Header - Draggable Area */}
             <div 
-              className={`notes-popup-header flex items-center justify-between p-3 sm:p-4 border-b ${
-                isMobile ? 'border-white border-opacity-20' : 'border-gray-200'
-              }`}
+              className="notes-popup-header flex items-center justify-between p-4 border-b border-gray-200"
               style={{ 
-                borderTopLeftRadius: isMobile ? '1rem' : '0.5rem', 
-                borderTopRightRadius: isMobile ? '1rem' : '0.5rem',
-                cursor: !isMobile && (isDragging ? 'grabbing' : 'move'),
+                borderTopLeftRadius: '0.5rem', 
+                borderTopRightRadius: '0.5rem',
+                cursor: isDragging ? 'grabbing' : 'move',
                 userSelect: 'none',
                 background: 'linear-gradient(90deg, #1E65AD 0%, #CF9B63 100%)'
               }}
-              onMouseEnter={!isMobile ? (e) => {
+              onMouseEnter={(e) => {
                 if (!isDragging) {
                   e.currentTarget.style.cursor = 'move';
                 }
-              } : undefined}
+              }}
             >
-              <div className="flex items-center gap-2 sm:gap-2.5">
-                <StickyNote className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6 text-white" />
-                <h3 className="text-sm sm:text-base md:text-lg font-bold text-white" style={{ fontFamily: 'Helvetica Hebrew Bold, sans-serif' }}>
+              <div className="flex items-center gap-2">
+                <StickyNote className="h-5 w-5 text-white" />
+                <h3 className="text-lg font-bold text-white" style={{ fontFamily: 'Helvetica Hebrew Bold, sans-serif' }}>
                   Notes
                 </h3>
               </div>
-              <div className="flex items-center gap-1.5 sm:gap-2">
-                {/* Size Control Buttons - Desktop Only */}
-                {!isMobile && (
-                  <div className="flex items-center gap-1 border-r border-white border-opacity-30 pr-2 mr-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setPopupSize(prev => ({
-                          width: Math.max(400, prev.width - 50),
-                          height: Math.max(300, prev.height - 50)
-                        }));
-                      }}
-                      className="text-white hover:text-gray-200 transition-colors p-1 rounded hover:bg-opacity-20"
-                      style={{ 
-                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                        borderRadius: '0.25rem',
-                        cursor: 'pointer'
-                      }}
-                      title="Make Smaller"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setPopupSize(prev => ({
-                          width: Math.min(window.innerWidth * 0.9, prev.width + 50),
-                          height: Math.min(window.innerHeight * 0.9, prev.height + 50)
-                        }));
-                      }}
-                      className="text-white hover:text-gray-200 transition-colors p-1 rounded hover:bg-opacity-20"
-                      style={{ 
-                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                        borderRadius: '0.25rem',
-                        cursor: 'pointer'
-                      }}
-                      title="Make Bigger"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                    </button>
-                  </div>
-                )}
+              <div className="flex items-center gap-2">
+                {/* Size Control Buttons */}
+                <div className="flex items-center gap-1 border-r border-white border-opacity-30 pr-2 mr-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPopupSize(prev => ({
+                        width: Math.max(400, prev.width - 50),
+                        height: Math.max(300, prev.height - 50)
+                      }));
+                    }}
+                    className="text-white hover:text-gray-200 transition-colors p-1 rounded hover:bg-opacity-20"
+                    style={{ 
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      borderRadius: '0.25rem',
+                      cursor: 'pointer'
+                    }}
+                    title="Make Smaller"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPopupSize(prev => ({
+                        width: Math.min(window.innerWidth * 0.9, prev.width + 50),
+                        height: Math.min(window.innerHeight * 0.9, prev.height + 50)
+                      }));
+                    }}
+                    className="text-white hover:text-gray-200 transition-colors p-1 rounded hover:bg-opacity-20"
+                    style={{ 
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      borderRadius: '0.25rem',
+                      cursor: 'pointer'
+                    }}
+                    title="Make Bigger"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </button>
+                </div>
                 
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowNotesPopup(false);
                   }}
-                  className={`text-white hover:text-gray-200 active:text-gray-300 transition-colors flex-shrink-0 ${
-                    isMobile ? 'p-1.5 rounded-full hover:bg-white hover:bg-opacity-20 active:bg-opacity-30' : 'p-1 rounded hover:bg-opacity-20'
-                  }`}
+                  className="text-white hover:text-gray-200 transition-colors p-1 rounded hover:bg-opacity-20 flex-shrink-0"
                   style={{ 
-                    backgroundColor: isMobile ? 'transparent' : 'rgba(255, 255, 255, 0.1)',
-                    borderRadius: isMobile ? '50%' : '0.25rem',
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    borderRadius: '0.25rem',
                     cursor: 'pointer'
                   }}
                   title="Close"
-                  aria-label="Close"
                 >
-                  <X className={isMobile ? 'h-5 w-5 sm:h-6 sm:w-6' : 'w-5 h-5'} />
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
               </div>
             </div>
             
-            {/* Resize Handle - Desktop Only */}
-            {!isMobile && (
-              <div
-                className="absolute bottom-0 right-0 w-6 h-6"
-                style={{
-                  background: 'linear-gradient(135deg, transparent 0%, transparent 50%, rgba(30, 101, 173, 0.3) 50%, rgba(30, 101, 173, 0.3) 100%)',
-                  borderBottomRightRadius: '0.5rem',
-                  cursor: 'nwse-resize'
-                }}
-                onMouseDown={(e) => {
-                  e.stopPropagation();
-                  setIsResizing(true);
-                  setResizeStart({
-                    x: e.clientX,
-                    y: e.clientY,
-                    width: popupSize.width,
-                    height: popupSize.height
-                  });
-                }}
-                onMouseEnter={(e) => {
-                  if (!isResizing) {
-                    e.currentTarget.style.cursor = 'nwse-resize';
-                  }
-                }}
-                title="Drag to resize"
-              />
-            )}
+            {/* Resize Handle - Bottom Right Corner */}
+            <div
+              className="absolute bottom-0 right-0 w-6 h-6"
+              style={{
+                background: 'linear-gradient(135deg, transparent 0%, transparent 50%, rgba(30, 101, 173, 0.3) 50%, rgba(30, 101, 173, 0.3) 100%)',
+                borderBottomRightRadius: '0.5rem',
+                cursor: 'nwse-resize'
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                setIsResizing(true);
+                setResizeStart({
+                  x: e.clientX,
+                  y: e.clientY,
+                  width: popupSize.width,
+                  height: popupSize.height
+                });
+              }}
+              onMouseEnter={(e) => {
+                if (!isResizing) {
+                  e.currentTarget.style.cursor = 'nwse-resize';
+                }
+              }}
+              title="Drag to resize"
+            />
 
             {/* Folder Tabs */}
-            <div className="border-b border-gray-200 bg-gray-50" style={{ position: 'relative', zIndex: 1 }}>
-              <div className="flex items-center gap-2 p-3 overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
-                {/* Folder Tabs */}
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  {notesFolders.map((folder) => (
-                    <button
-                      key={folder.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // Save current folder content before switching
-                        setNotesFolders(prev => prev.map(f => 
-                          f.id === activeFolderId ? { ...f, content: notesContent } : f
-                        ));
-                        // Switch to new folder
-                        setActiveFolderId(folder.id);
-                        setNotesContent(folder.content || '');
-                      }}
-                      className={`px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-200 flex-shrink-0 ${
-                        activeFolderId === folder.id
-                          ? 'bg-blue-600 text-white shadow-md scale-105'
-                          : 'bg-white text-gray-700 hover:bg-gray-100 active:bg-gray-200 border border-gray-200'
-                      }`}
-                      style={{ fontFamily: 'Roboto, sans-serif' }}
-                    >
-                      {folder.name}
-                    </button>
-                  ))}
-                </div>
-                
-                {/* Action Buttons Container */}
-                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                  {showNewFolderInput ? (
-                    <div className="flex items-center gap-1.5 bg-white rounded-lg p-1 border border-gray-200 shadow-sm">
-                      <input
-                        type="text"
-                        value={newFolderName}
-                        onChange={(e) => setNewFolderName(e.target.value)}
-                        placeholder="Folder name"
-                        className="px-2.5 py-1.5 border-2 border-blue-500 rounded-lg text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
-                        style={{ 
-                          fontFamily: 'Roboto, sans-serif',
-                          minWidth: '120px',
-                          maxWidth: '150px'
-                        }}
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter' && newFolderName.trim()) {
-                            const newFolder = {
-                              id: Date.now().toString(),
-                              name: newFolderName.trim(),
-                              content: ''
-                            };
-                            setNotesFolders([...notesFolders, newFolder]);
-                            setActiveFolderId(newFolder.id);
-                            setNotesContent('');
-                            setNewFolderName('');
-                            setShowNewFolderInput(false);
-                          }
-                        }}
-                        onBlur={() => {
-                          // Don't close on blur, let user click Add or Cancel
-                        }}
-                        autoFocus
-                      />
+            <div className="border-b border-gray-200 bg-gray-50 flex items-center gap-1 px-2 py-1 overflow-x-auto">
+              <div className="flex items-center gap-1 flex-1 min-w-0">
+                {notesFolders.map((folder) => (
+                  <button
+                    key={folder.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Save current folder content before switching
+                      setNotesFolders(prev => prev.map(f => 
+                        f.id === activeFolderId ? { ...f, content: notesContent } : f
+                      ));
+                      // Switch to new folder
+                      setActiveFolderId(folder.id);
+                      setNotesContent(folder.content || '');
+                    }}
+                    className={`px-3 py-2 rounded-t-lg text-sm font-medium transition-all whitespace-nowrap flex items-center gap-2 ${
+                      activeFolderId === folder.id
+                        ? 'bg-white text-blue-600 border-b-2 border-blue-600'
+                        : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                    }`}
+                    style={{ fontFamily: 'Roboto, sans-serif' }}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    </svg>
+                    <span>{folder.name}</span>
+                    {notesFolders.length > 1 && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (newFolderName.trim()) {
-                            const newFolder = {
-                              id: Date.now().toString(),
-                              name: newFolderName.trim(),
-                              content: ''
-                            };
-                            setNotesFolders([...notesFolders, newFolder]);
-                            setActiveFolderId(newFolder.id);
-                            setNotesContent('');
-                            setNewFolderName('');
+                          if (notesFolders.length > 1) {
+                            const newFolders = notesFolders.filter(f => f.id !== folder.id);
+                            setNotesFolders(newFolders);
+                            if (activeFolderId === folder.id) {
+                              const newActiveId = newFolders[0]?.id || 'default';
+                              setActiveFolderId(newActiveId);
+                              setNotesContent(newFolders.find(f => f.id === newActiveId)?.content || '');
+                            }
                           }
-                          setShowNewFolderInput(false);
                         }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors shadow-sm whitespace-nowrap ${
-                          newFolderName.trim()
-                            ? 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 cursor-pointer'
-                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        }`}
-                        style={{ fontFamily: 'Roboto, sans-serif' }}
-                        disabled={!newFolderName.trim()}
+                        className="ml-1 hover:bg-gray-200 rounded p-0.5 transition-colors"
+                        title="Delete folder"
                       >
-                        Add
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
                       </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
+                    )}
+                  </button>
+                ))}
+                
+                {/* Add New Folder Button */}
+                {showNewFolderInput ? (
+                  <div className="flex items-center gap-1 px-2">
+                    <input
+                      type="text"
+                      value={newFolderName}
+                      onChange={(e) => setNewFolderName(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && newFolderName.trim()) {
+                          const newFolder = {
+                            id: `folder-${Date.now()}`,
+                            name: newFolderName.trim(),
+                            content: ''
+                          };
+                          setNotesFolders([...notesFolders, newFolder]);
+                          setActiveFolderId(newFolder.id);
+                          setNotesContent('');
+                          setNewFolderName('');
+                          setShowNewFolderInput(false);
+                        } else if (e.key === 'Escape') {
                           setShowNewFolderInput(false);
                           setNewFolderName('');
-                        }}
-                        className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold hover:bg-gray-300 active:bg-gray-400 transition-colors whitespace-nowrap"
-                        style={{ fontFamily: 'Roboto, sans-serif' }}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowNewFolderInput(true);
-                        }}
-                        className="px-3 py-2 bg-blue-600 text-white rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap hover:bg-blue-700 active:bg-blue-800 transition-colors shadow-sm"
-                        style={{ fontFamily: 'Roboto, sans-serif' }}
-                      >
-                        + New
-                      </button>
-                      {notesFolders.length > 1 && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (notesFolders.length > 1 && window.confirm('Delete this folder?')) {
-                              const newFolders = notesFolders.filter(f => f.id !== activeFolderId);
-                              setNotesFolders(newFolders);
-                              setActiveFolderId(newFolders[0].id);
-                              setNotesContent(newFolders[0].content || '');
-                            }
-                          }}
-                          className="px-3 py-2 bg-red-500 text-white rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap hover:bg-red-600 active:bg-red-700 transition-colors shadow-sm"
-                          style={{ fontFamily: 'Roboto, sans-serif' }}
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </>
-                  )}
-                </div>
+                        }
+                      }}
+                      placeholder="Folder name..."
+                      className="px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      style={{ fontFamily: 'Roboto, sans-serif', minWidth: '120px' }}
+                      autoFocus
+                    />
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowNewFolderInput(false);
+                        setNewFolderName('');
+                      }}
+                      className="text-gray-500 hover:text-gray-700"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowNewFolderInput(true);
+                    }}
+                    className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-t-lg transition-all flex items-center gap-1"
+                    title="Add new folder"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span className="hidden sm:inline">New Folder</span>
+                  </button>
+                )}
               </div>
             </div>
 
             {/* Content Area */}
-            <div className="flex-1 overflow-hidden flex flex-col p-3 sm:p-4 bg-gray-50" style={{ cursor: 'text' }}>
+            <div className="flex-1 overflow-hidden flex flex-col" style={{ cursor: 'text' }}>
               <textarea
                 value={notesContent}
                 onChange={(e) => {
@@ -1603,46 +1580,64 @@ export default function MappingDetails() {
                     f.id === activeFolderId ? { ...f, content: e.target.value } : f
                   ));
                 }}
-                className="flex-1 w-full p-3 sm:p-4 border-2 border-gray-300 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs sm:text-sm md:text-base bg-white shadow-inner"
+                placeholder="Write your notes here..."
+                className="flex-1 w-full p-4 border-0 resize-none focus:outline-none focus:ring-0"
                 style={{ 
                   fontFamily: 'Roboto, sans-serif',
+                  minHeight: '300px',
+                  fontSize: '14px',
                   lineHeight: '1.6',
-                  minHeight: '200px',
                   color: '#1E65AD',
                   cursor: 'text'
                 }}
-                placeholder="Write your notes here...&#10;&#10;You can use markdown formatting:&#10;# Heading&#10;## Subheading&#10;**Bold text**&#10;*Italic text*"
               />
+            </div>
 
-              {/* Save Button */}
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => {
+                  // Save current folder content before closing
+                  setNotesFolders(prev => prev.map(f => 
+                    f.id === activeFolderId ? { ...f, content: notesContent } : f
+                  ));
+                  setShowNotesPopup(false);
+                }}
+                className="px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors font-medium text-sm"
+                style={{ fontFamily: 'Roboto, sans-serif', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
               <button
                 onClick={() => {
                   // Save notes logic here - save all folders
                   setNotesFolders(prev => prev.map(f => 
                     f.id === activeFolderId ? { ...f, content: notesContent } : f
                   ));
+                  console.log('Saving notes folders:', notesFolders);
+                  // You can implement save functionality here (localStorage, API, etc.)
                   // Save to localStorage for persistence
                   const notesKey = `notes_mapping_${mapping?.id || 'default'}`;
                   const updatedFolders = notesFolders.map(f => 
                     f.id === activeFolderId ? { ...f, content: notesContent } : f
                   );
                   localStorage.setItem(notesKey, JSON.stringify(updatedFolders));
-                  
-                  // Visual feedback
-                  setSaveButtonText('✓ Saved!');
-                  setSaveButtonColor('#10b981');
-                  setTimeout(() => {
-                    setSaveButtonText('Save Notes');
-                    setSaveButtonColor('');
-                  }, 2000);
+                  setShowNotesPopup(false);
                 }}
-                className="mt-3 w-full px-4 py-3 text-white rounded-xl hover:bg-opacity-90 active:bg-opacity-80 transition-all duration-200 font-semibold text-xs sm:text-sm md:text-base shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]"
-                style={{
+                className="px-4 py-2 text-white rounded-lg transition-all font-medium text-sm shadow-sm hover:shadow-md"
+                style={{ 
                   fontFamily: 'Roboto, sans-serif',
-                  backgroundColor: saveButtonColor || '#2563eb'
+                  background: 'linear-gradient(90deg, #1E65AD 0%, #CF9B63 100%)',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = 'linear-gradient(90deg, #1a5a9a 0%, #b88a56 100%)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = 'linear-gradient(90deg, #1E65AD 0%, #CF9B63 100%)';
                 }}
               >
-                {saveButtonText}
+                Save Notes
               </button>
             </div>
           </div>

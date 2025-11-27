@@ -163,7 +163,7 @@ export default function Login() {
       
       await login(userData, tokens);
       
-      setMessage("Login successful! Redirecting...");
+      setMessage("Login successfully ");
       setTimeout(() => {
         // Navigate back to the previous page
         navigate(-1);

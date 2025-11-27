@@ -157,6 +157,26 @@ const Calendar = () => {
     });
   };
 
+  const formatDateForInput = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const handleDateClick = (day) => {
+    if (day) {
+      setSelectedDate(day);
+      // Pre-fill the date in the new event form
+      setNewEvent(prev => ({
+        ...prev,
+        date: formatDateForInput(day)
+      }));
+      // Open the add event modal
+      setShowAddEvent(true);
+    }
+  };
+
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
@@ -333,7 +353,7 @@ const Calendar = () => {
                     } ${isToday ? 'bg-blue-50 border-blue-300' : ''} ${
                       isSelected ? 'bg-blue-100 border-blue-400' : ''
                     }`}
-                    onClick={() => day && setSelectedDate(day)}
+                    onClick={() => handleDateClick(day)}
                   >
                     {day && (
                       <>

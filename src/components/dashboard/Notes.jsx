@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import apiService from '../../services/api';
+import ReactMarkdown from 'react-markdown';
 import { 
   FileText, 
   Folder, 
@@ -16,7 +17,10 @@ import {
   Tag,
   ChevronLeft,
   ChevronRight,
-  ExternalLink
+  ExternalLink,
+  X,
+  Save,
+  Eye
 } from 'lucide-react';
 
 const Notes = () => {
@@ -36,6 +40,14 @@ const Notes = () => {
     total: 0,
     pages: 1
   });
+
+  // Note popup state
+  const [showNotePopup, setShowNotePopup] = useState(false);
+  const [selectedNote, setSelectedNote] = useState(null);
+  const [noteContent, setNoteContent] = useState('');
+  const [noteTitle, setNoteTitle] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
 
   // Load folders from API
   useEffect(() => {
@@ -131,20 +143,28 @@ const Notes = () => {
     loadNotes();
   }, [isAuthenticated, pagination.page, selectedFolder, selectedReferenceType, searchQuery]);
 
-  const handleNoteClick = async (note) => {
-    // Navigate to the referenced item
+  const handleNoteClick = (note) => {
+    // Open note in popup for viewing/editing
+    setSelectedNote(note);
+    setNoteContent(note.content || '');
+    setNoteTitle(note.title || '');
+    setIsEditing(false);
+    setShowNotePopup(true);
+  };
+
+  const handleNavigateToReference = async (note) => {
     try {
       if (note.reference_type === 'judgment') {
         const judgment = await apiService.getJudgementById(note.reference_id);
         const judgmentId = judgment?.id || judgment?.cnr || note.reference_id;
         const url = judgmentId ? `/judgment/${judgmentId}` : '/judgment';
-        navigate(url, { state: { judgment } });
+        navigate(url, { state: { judgment, openNotes: true, noteId: note.id } });
       } else if (note.reference_type === 'central_act') {
         const act = await apiService.getCentralActById(note.reference_id);
-        navigate('/judgment', { state: { act } });
+        navigate(`/acts/${act.id || note.reference_id}`, { state: { act, openNotes: true, noteId: note.id } });
       } else if (note.reference_type === 'state_act') {
         const act = await apiService.getStateActById(note.reference_id);
-        navigate('/judgment', { state: { act } });
+        navigate(`/acts/${act.id || note.reference_id}`, { state: { act, openNotes: true, noteId: note.id } });
       } else {
         // For mappings, navigate to law mapping page
         navigate(`/law-mapping?type=${note.reference_type}`, { 
@@ -154,6 +174,39 @@ const Notes = () => {
     } catch (error) {
       console.error('Error navigating to referenced item:', error);
       alert('Failed to load the referenced item');
+    }
+  };
+
+  const handleSaveNote = async () => {
+    if (!selectedNote || !noteContent.trim()) {
+      alert('Please enter some content for the note');
+      return;
+    }
+
+    try {
+      setSavingNote(true);
+      const noteData = {
+        title: noteTitle.substring(0, 200),
+        content: noteContent,
+        folder_id: selectedNote.folder_id || null
+      };
+
+      await apiService.updateNote(selectedNote.id, noteData);
+      
+      // Update the note in the list
+      setNotes(prev => prev.map(note => 
+        note.id === selectedNote.id 
+          ? { ...note, title: noteTitle, content: noteContent, updated_at: new Date().toISOString() }
+          : note
+      ));
+      
+      setIsEditing(false);
+      alert('Note saved successfully!');
+    } catch (error) {
+      console.error('Error saving note:', error);
+      alert('Failed to save note. Please try again.');
+    } finally {
+      setSavingNote(false);
     }
   };
 
@@ -601,6 +654,178 @@ const Notes = () => {
           </div>
         )}
       </div>
+
+      {/* Note Popup Modal */}
+      {showNotePopup && selectedNote && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-50"
+            onClick={() => {
+              setShowNotePopup(false);
+              setIsEditing(false);
+            }}
+          />
+          
+          {/* Popup */}
+          <div
+            className="fixed bg-white rounded-lg shadow-2xl z-50 flex flex-col"
+            style={{
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: '90vw',
+              maxWidth: '800px',
+              maxHeight: '90vh',
+              fontFamily: 'Roboto, sans-serif'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div 
+              className="flex items-center justify-between p-4 border-b border-gray-200 flex-shrink-0"
+              style={{ 
+                background: 'linear-gradient(90deg, #1E65AD 0%, #CF9B63 100%)',
+                borderTopLeftRadius: '0.5rem',
+                borderTopRightRadius: '0.5rem'
+              }}
+            >
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <FileText className="h-5 w-5 text-white flex-shrink-0" />
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={noteTitle}
+                    onChange={(e) => setNoteTitle(e.target.value)}
+                    className="flex-1 px-2 py-1 rounded text-white bg-white bg-opacity-20 placeholder-white placeholder-opacity-70 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
+                    placeholder="Note title..."
+                    style={{ fontFamily: 'Roboto, sans-serif', color: 'white' }}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <h3 className="text-lg font-bold text-white truncate" style={{ fontFamily: 'Helvetica Hebrew Bold, sans-serif' }}>
+                    {noteTitle || 'Untitled Note'}
+                  </h3>
+                )}
+                <span className="px-2 py-1 rounded text-xs font-medium bg-white bg-opacity-20 text-white" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                  {getReferenceTypeLabel(selectedNote.reference_type)}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {!isEditing ? (
+                  <>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsEditing(true);
+                      }}
+                      className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded transition-colors"
+                      title="Edit note"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleNavigateToReference(selectedNote);
+                      }}
+                      className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded transition-colors"
+                      title="View referenced item"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </button>
+                  </>
+                ) : null}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowNotePopup(false);
+                    setIsEditing(false);
+                  }}
+                  className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded transition-colors"
+                  title="Close"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Content Area */}
+            <div className="flex-1 overflow-y-auto p-4" style={{ minHeight: '300px', maxHeight: 'calc(90vh - 200px)' }}>
+              {isEditing ? (
+                <textarea
+                  value={noteContent}
+                  onChange={(e) => setNoteContent(e.target.value)}
+                  placeholder="Write your notes here... (Markdown supported)"
+                  className="w-full h-full p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  style={{ 
+                    fontFamily: 'Roboto, sans-serif',
+                    minHeight: '400px',
+                    fontSize: '14px',
+                    lineHeight: '1.6'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                <div className="prose prose-sm max-w-none p-4" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                  <ReactMarkdown>{noteContent || '*No content*'}</ReactMarkdown>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+              <div className="flex items-center gap-2 text-sm text-gray-600" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                <Clock className="h-4 w-4" />
+                <span>Updated: {new Date(selectedNote.updated_at || selectedNote.updatedAt).toLocaleString()}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {isEditing ? (
+                  <>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsEditing(false);
+                        setNoteContent(selectedNote.content || '');
+                        setNoteTitle(selectedNote.title || '');
+                      }}
+                      className="px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors font-medium text-sm"
+                      style={{ fontFamily: 'Roboto, sans-serif' }}
+                      disabled={savingNote}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSaveNote();
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm flex items-center gap-2"
+                      style={{ fontFamily: 'Roboto, sans-serif' }}
+                      disabled={savingNote}
+                    >
+                      <Save className="h-4 w-4" />
+                      {savingNote ? 'Saving...' : 'Save'}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleNavigateToReference(selectedNote);
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm flex items-center gap-2"
+                    style={{ fontFamily: 'Roboto, sans-serif' }}
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    View Source
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };
