@@ -1,0 +1,570 @@
+/* Document Editor Styles */
+
+.document-editor-page {
+  min-height: 100vh;
+  background-color: #F5F5F5;
+  font-family: 'Roboto', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.editor-container {
+  padding-top: 80px;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding-left: 20px;
+  padding-right: 20px;
+  padding-bottom: 40px;
+}
+
+/* Header Bar */
+.editor-header {
+  background: white;
+  border-radius: 12px;
+  padding: 16px 24px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.back-button {
+  padding: 8px;
+  border: none;
+  background: #f0f0f0;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.back-button:hover {
+  background: #e0e0e0;
+}
+
+.editor-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1E65AD;
+  margin: 0;
+  font-family: 'Helvetica Hebrew Bold', sans-serif;
+}
+
+.header-right {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.header-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+  font-family: 'Roboto', sans-serif;
+}
+
+.preview-btn {
+  background: #6B7280;
+  color: white;
+}
+
+.preview-btn:hover {
+  background: #4B5563;
+}
+
+.exit-preview-btn {
+  background: #1E65AD;
+  color: white;
+}
+
+.exit-preview-btn:hover {
+  background: #1a5a9a;
+}
+
+.download-btn {
+  background: #CF9B63;
+  color: white;
+}
+
+.download-btn:hover {
+  background: #b88952;
+}
+
+.download-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Error Message */
+.error-message {
+  background: #FEE2E2;
+  border-left: 4px solid #EF4444;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.error-message p {
+  margin: 0;
+  color: #991B1B;
+  font-size: 14px;
+}
+
+.error-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #991B1B;
+  padding: 4px;
+}
+
+/* Loading Indicator */
+.loading-indicator {
+  text-align: center;
+  padding: 40px;
+}
+
+.spinner {
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #1E65AD;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-indicator p {
+  color: #6B7280;
+  font-size: 14px;
+}
+
+/* Toolbar */
+.toolbar {
+  background: white;
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.toolbar-group {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding-right: 12px;
+  border-right: 1px solid #E5E7EB;
+}
+
+.toolbar-group:last-child {
+  border-right: none;
+}
+
+.toolbar-btn {
+  padding: 8px 12px;
+  border: 1px solid #E5E7EB;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  transition: all 0.2s;
+  font-family: 'Roboto', sans-serif;
+}
+
+.toolbar-btn:hover {
+  background: #F3F4F6;
+  border-color: #D1D5DB;
+}
+
+.toolbar-btn:active {
+  background: #E5E7EB;
+}
+
+.signature-btn {
+  background: #EFF6FF;
+  color: #1E65AD;
+  border-color: #BFDBFE;
+}
+
+.signature-btn:hover {
+  background: #DBEAFE;
+}
+
+.font-size-select {
+  padding: 8px 12px;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: 'Roboto', sans-serif;
+}
+
+.font-size-select:hover {
+  border-color: #D1D5DB;
+}
+
+.hidden-input {
+  display: none;
+}
+
+/* Document Wrapper */
+.document-wrapper {
+  display: flex;
+  justify-content: center;
+  padding: 20px 0;
+}
+
+.document-page {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  padding: 40px 60px;
+  max-width: 1000px;
+  width: 100%;
+  min-height: 600px;
+  /* Preserve original document appearance */
+  font-family: 'Times New Roman', serif;
+}
+
+/* Editable Content */
+.editable-content {
+  outline: none;
+  min-height: 600px;
+  font-family: 'Times New Roman', serif;
+  font-size: 12pt;
+  line-height: 1.6;
+  color: #000;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
+  caret-color: #1E65AD;
+  /* Preserve original document appearance */
+  background: white;
+}
+
+/* Preserve original document formatting */
+.editable-content * {
+  box-sizing: border-box;
+  /* Don't override inline styles from the document */
+}
+
+/* Preserve table formatting - don't override if styles exist */
+.editable-content table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  margin: 15px 0;
+}
+
+.editable-content table[style*="border"] {
+  /* Let inline styles take precedence */
+}
+
+.editable-content table td,
+.editable-content table th {
+  /* Only apply default if no inline style */
+  padding: 4px 8px;
+  vertical-align: top;
+}
+
+.editable-content table td[style],
+.editable-content table th[style] {
+  /* Inline styles take precedence */
+}
+
+/* Preserve paragraph spacing - minimal override */
+.editable-content p {
+  margin: 6px 0;
+  line-height: 1.6;
+}
+
+.editable-content p[style] {
+  /* Inline styles take precedence */
+}
+
+/* Preserve heading styles */
+.editable-content h1,
+.editable-content h2,
+.editable-content h3,
+.editable-content h4,
+.editable-content h5,
+.editable-content h6 {
+  margin: 12px 0 6px 0;
+  font-weight: bold;
+}
+
+/* Preserve list formatting */
+.editable-content ul,
+.editable-content ol {
+  margin: 10px 0;
+  padding-left: 30px;
+}
+
+.editable-content li {
+  margin: 4px 0;
+}
+
+/* Preserve spans and other inline elements */
+.editable-content span[style],
+.editable-content div[style],
+.editable-content p[style] {
+  /* Let inline styles work */
+}
+
+.editable-content:focus {
+  outline: 2px solid #1E65AD;
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
+/* Preview Content */
+.preview-content {
+  min-height: 600px;
+  font-family: 'Times New Roman', serif;
+  font-size: 12pt;
+  line-height: 1.6;
+  color: #000;
+  pointer-events: none;
+  background: white;
+}
+
+/* Preserve original document formatting in preview */
+.preview-content * {
+  box-sizing: border-box;
+}
+
+.preview-content table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  margin: 15px 0;
+}
+
+.preview-content table td,
+.preview-content table th {
+  padding: 4px 8px;
+  vertical-align: top;
+}
+
+.preview-content p {
+  margin: 6px 0;
+  line-height: 1.6;
+}
+
+.preview-content h1,
+.preview-content h2,
+.preview-content h3,
+.preview-content h4,
+.preview-content h5,
+.preview-content h6 {
+  margin: 12px 0 6px 0;
+  font-weight: bold;
+}
+
+.preview-content ul,
+.preview-content ol {
+  margin: 10px 0;
+  padding-left: 30px;
+}
+
+.preview-content li {
+  margin: 4px 0;
+}
+
+/* Let inline styles from document take precedence */
+.preview-content *[style] {
+  /* Inline styles override CSS */
+}
+
+/* Checkbox Styles */
+.doc-checkbox,
+input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0 4px;
+  vertical-align: middle;
+  cursor: pointer;
+  accent-color: #1E65AD;
+}
+
+/* Image Styles */
+.editable-content img,
+.preview-content img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 10px 0;
+}
+
+/* Signature Placeholder */
+#signature-placeholder {
+  margin-top: 40px;
+  padding: 20px;
+  border: 1px dashed #ccc;
+  text-align: center;
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#signature-placeholder img {
+  max-width: 300px;
+  height: auto;
+  display: inline-block;
+  border: none;
+}
+
+/* Table Styles */
+.editable-content table,
+.preview-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 15px 0;
+}
+
+.editable-content table td,
+.editable-content table th,
+.preview-content table td,
+.preview-content table th {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+.editable-content table th,
+.preview-content table th {
+  background-color: #f5f5f5;
+  font-weight: bold;
+}
+
+/* Paragraph and Text Styles */
+.editable-content p,
+.preview-content p {
+  margin: 10px 0;
+  line-height: 1.6;
+}
+
+.editable-content h1,
+.preview-content h1 {
+  font-size: 24px;
+  font-weight: bold;
+  margin: 20px 0 10px 0;
+  color: #1E65AD;
+}
+
+.editable-content h2,
+.preview-content h2 {
+  font-size: 20px;
+  font-weight: bold;
+  margin: 18px 0 8px 0;
+  color: #1E65AD;
+}
+
+.editable-content h3,
+.preview-content h3 {
+  font-size: 16px;
+  font-weight: bold;
+  margin: 15px 0 8px 0;
+  color: #333;
+}
+
+/* List Styles */
+.editable-content ul,
+.editable-content ol,
+.preview-content ul,
+.preview-content ol {
+  margin: 10px 0;
+  padding-left: 30px;
+}
+
+.editable-content li,
+.preview-content li {
+  margin: 5px 0;
+  line-height: 1.6;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .editor-container {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .editor-header {
+    padding: 12px 16px;
+  }
+
+  .editor-title {
+    font-size: 16px;
+  }
+
+  .header-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+
+  .toolbar {
+    padding: 8px 12px;
+  }
+
+  .toolbar-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .document-page {
+    padding: 20px;
+  }
+
+  .editable-content,
+  .preview-content {
+    font-size: 11pt;
+    min-height: 400px;
+  }
+}
+
+@media (max-width: 480px) {
+  .toolbar-group {
+    padding-right: 8px;
+  }
+
+  .toolbar-btn {
+    padding: 6px 8px;
+  }
+
+  .toolbar-btn span {
+    display: none;
+  }
+}
+

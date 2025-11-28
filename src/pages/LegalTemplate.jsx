@@ -28,16 +28,53 @@ export default function LegalTemplate() {
     setLoading(true);
     setError("");
     
-    // TODO: Implement real API call for template search
-    setError("Template search feature is not yet implemented. Please check back later.");
-    setTemplates([]);
+    // Filter default templates based on search query and category
+    let filtered = [...defaultTemplates];
+    
+    // Filter by category
+    if (selectedCategory) {
+      filtered = filtered.filter(template => 
+        template.category.toLowerCase() === selectedCategory.toLowerCase()
+      );
+    }
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(template => 
+        template.title.toLowerCase().includes(query) ||
+        template.description.toLowerCase().includes(query) ||
+        template.tags.some(tag => tag.toLowerCase().includes(query)) ||
+        template.category.toLowerCase().includes(query)
+      );
+    }
+    
+    setTemplates(filtered);
+    
+    if (filtered.length === 0) {
+      setError("No templates found matching your search criteria.");
+    }
+    
     setLoading(false);
   };
 
   const clearFilters = () => {
     setSelectedCategory("");
     setSearchQuery("");
-    setTemplates([]);
+    setTemplates(defaultTemplates);
+    setError("");
+  };
+
+  const viewDocument = (template) => {
+    // Navigate to document editor page
+    const documentPath = template.path || `/documents/${template.title.replace(/\s+/g, '%20')}.${template.fileType || 'html'}`;
+    navigate('/document-editor', { 
+      state: { 
+        documentPath: documentPath,
+        templateTitle: template.title,
+        templateId: template.id
+      } 
+    });
   };
 
   const viewTemplateDetails = (template) => {
@@ -73,9 +110,37 @@ export default function LegalTemplate() {
     return stars.join("");
   };
 
+  // Default templates
+  const defaultTemplates = [
+    {
+      id: 1,
+      title: "Vendor Evaluation Template",
+      category: "Corporate Law",
+      type: "Evaluation Form",
+      description: "Comprehensive vendor evaluation template for assessing and selecting vendors. Includes evaluation criteria, scoring system, and approval workflow.",
+      format: "HTML",
+      size: "148 KB",
+      pages: 5,
+      downloads: 1247,
+      rating: 4.5,
+      lastUpdated: new Date('2024-11-28'),
+      tags: ["vendor", "evaluation", "corporate", "assessment", "procurement"],
+      features: [
+        "Vendor information section",
+        "Evaluation criteria checklist",
+        "Scoring and rating system",
+        "Approval workflow",
+        "Terms and conditions"
+      ],
+      preview: "This template helps organizations systematically evaluate and select vendors based on multiple criteria including quality, pricing, delivery, and service.",
+      path: "/documents/Vendor Evaluation Template 2.htm",
+      fileType: "html"
+    }
+  ];
+
   useEffect(() => {
-    // TODO: Load initial templates from API
-    setTemplates([]);
+    // Load default templates
+    setTemplates(defaultTemplates);
   }, []);
 
   return (
@@ -248,21 +313,33 @@ export default function LegalTemplate() {
                       )}
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex flex-col gap-2">
                       <button
-                        onClick={() => viewTemplateDetails(template)}
-                        className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
+                        onClick={() => viewDocument(template)}
+                        className="w-full px-4 py-2 bg-[#1E65AD] text-white rounded-lg hover:bg-[#1a5a9a] transition-colors font-medium text-sm flex items-center justify-center gap-2"
                         style={{ fontFamily: 'Roboto, sans-serif' }}
                       >
-                        View Details
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        View Details / Edit
                       </button>
-                      <button
-                        onClick={() => downloadTemplate(template)}
-                        className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium text-sm"
-                        style={{ fontFamily: 'Roboto, sans-serif' }}
-                      >
-                        Download
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => viewTemplateDetails(template)}
+                          className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
+                          style={{ fontFamily: 'Roboto, sans-serif' }}
+                        >
+                          View Details
+                        </button>
+                        <button
+                          onClick={() => downloadTemplate(template)}
+                          className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium text-sm"
+                          style={{ fontFamily: 'Roboto, sans-serif' }}
+                        >
+                          Download
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}

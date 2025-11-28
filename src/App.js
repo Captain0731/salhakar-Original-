@@ -13,6 +13,7 @@ import ActDetails from "./pages/ActDetails";
 import MappingDetails from "./pages/MappingDetails";
 import LawMapping from "./pages/LawMapping";
 import LegalTemplate from "./pages/LegalTemplate";
+import DocumentEditor from "./pages/DocumentEditor";
 import YoutubeVideoSummary from "./pages/YoutubeVideoSummary";
 import LegalChatbot from "./pages/LegalChatbot";
 import Profile from "./pages/Profile";
@@ -52,7 +53,8 @@ function AppLayout() {
     '/mapping-details',
     '/law-library',
     '/legal-chatbot',
-    '/law-mapping'
+    '/law-mapping',
+    '/document-editor'
   ];
   
   // Pages where footer should be hidden
@@ -68,7 +70,8 @@ function AppLayout() {
     '/law-library',
     '/legal-chatbot',
     '/law-mapping',
-    '/legal-template'
+    '/legal-template',
+    '/document-editor'
   ];
   
   const shouldShowChatbot = !hideChatbotPaths.some(path => location.pathname.startsWith(path));
@@ -111,6 +114,7 @@ function AppLayout() {
         <Route path="/mapping-details" element={<MappingDetails />} />
         <Route path="/law-mapping" element={<LawMapping />} />
         <Route path="/legal-template" element={<LegalTemplate />} />
+        <Route path="/document-editor" element={<DocumentEditor />} />
         <Route path="/youtube-summary" element={<YoutubeVideoSummary />} />
         <Route path="/legal-chatbot" element={<LegalChatbot />} />
         <Route path="/profile" element={<Profile />} />

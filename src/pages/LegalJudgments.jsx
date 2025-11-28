@@ -380,7 +380,7 @@ export default function LegalJudgments() {
     fetchJudgmentsRef.current = fetchJudgments;
   }, [fetchJudgments]);
 
-  // Filter handling functions
+  // Filter handling functions - Simple like LawMapping
   const handleFilterChange = (filterName, value) => {
     setFilters(prev => ({
       ...prev,
@@ -688,7 +688,7 @@ export default function LegalJudgments() {
                 <div className="relative flex-1 w-full">
                   <input
                     type="text"
-                    value={filters.search}
+                    value={filters.search || ''}
                     onChange={(e) => handleFilterChange('search', e.target.value)}
                     placeholder="Search by case title, parties, judges..."
                     onKeyDown={(e) => {
@@ -761,7 +761,7 @@ export default function LegalJudgments() {
                   </label>
                   <input
                     type="text"
-                    value={filters.title}
+                    value={filters.title || ''}
                     onChange={(e) => handleFilterChange('title', e.target.value)}
                     placeholder="e.g., State vs John Doe"
                     className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
@@ -774,7 +774,7 @@ export default function LegalJudgments() {
                   </label>
                   <input
                     type="text"
-                    value={filters.judge}
+                    value={filters.judge || ''}
                     onChange={(e) => handleFilterChange('judge', e.target.value)}
                     placeholder="e.g., Justice Singh"
                     className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
@@ -787,7 +787,7 @@ export default function LegalJudgments() {
                   </label>
                   <input
                     type="text"
-                    value={filters.petitioner}
+                    value={filters.petitioner || ''}
                     onChange={(e) => handleFilterChange('petitioner', e.target.value)}
                     placeholder="e.g., State of Maharashtra"
                     className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
@@ -800,7 +800,7 @@ export default function LegalJudgments() {
                   </label>
                   <input
                     type="text"
-                    value={filters.respondent}
+                    value={filters.respondent || ''}
                     onChange={(e) => handleFilterChange('respondent', e.target.value)}
                     placeholder="e.g., Union of India"
                     className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
@@ -817,7 +817,7 @@ export default function LegalJudgments() {
                   </label>
                   <input
                     type="text"
-                    value={filters.title}
+                    value={filters.title || ''}
                     onChange={(e) => handleFilterChange('title', e.target.value)}
                     placeholder="e.g., State vs John Doe"
                     className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
@@ -830,7 +830,7 @@ export default function LegalJudgments() {
                   </label>
                   <input
                     type="text"
-                    value={filters.judge}
+                    value={filters.judge || ''}
                     onChange={(e) => handleFilterChange('judge', e.target.value)}
                     placeholder="e.g., Justice Singh"
                     className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
@@ -848,7 +848,7 @@ export default function LegalJudgments() {
                 </label>
                 <input
                   type="text"
-                  value={filters.cnr}
+                  value={filters.cnr || ''}
                   onChange={(e) => handleFilterChange('cnr', e.target.value)}
                   placeholder={courtType === "supremecourt" ? "e.g., SC-123456-2023" : "e.g., HPHC010019512005"}
                   className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
@@ -884,8 +884,11 @@ export default function LegalJudgments() {
                 </label>
                 <input
                   type="date"
-                  value={filters.decisionDateFrom}
-                  onChange={(e) => handleFilterChange('decisionDateFrom', e.target.value)}
+                  value={filters.decisionDateFrom || ''}
+                  onChange={(e) => {
+                    const newValue = e.target.value;
+                    handleFilterChange('decisionDateFrom', newValue);
+                  }}
                   className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                   style={{ fontFamily: 'Roboto, sans-serif' }}
                 />

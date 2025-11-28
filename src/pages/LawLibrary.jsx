@@ -169,12 +169,19 @@ export default function LawLibrary() {
   const activeSectionData = librarySections.find(s => s.id === activeSection) || librarySections[0];
   const sectionLabel = activeSectionData.title;
 
-  const handleFilterChange = (key, value) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+  // Memoized filter change handler to prevent unnecessary re-renders
+  const handleFilterChange = useCallback((key, value) => {
+    setFilters(prev => {
+      // Only update if value actually changed
+      if (prev[key] === value) {
+        return prev;
+      }
+      return { ...prev, [key]: value };
+    });
     if (key === 'search') {
       setSearchQuery(value);
     }
-  };
+  }, []);
   
   // Update searchQuery when filters.search changes (e.g., from URL)
   useEffect(() => {
@@ -601,8 +608,17 @@ export default function LawLibrary() {
                 <div className="relative flex-1 w-full">
                 <input
                   type="text"
-                  value={filters.search}
-                  onChange={(e) => handleFilterChange('search', e.target.value)}
+                  value={filters.search || ''}
+                  onChange={(e) => {
+                    const newValue = e.target.value;
+                    const cursorPosition = e.target.selectionStart;
+                    handleFilterChange('search', newValue);
+                    setTimeout(() => {
+                      if (e.target) {
+                        e.target.setSelectionRange(cursorPosition, cursorPosition);
+                      }
+                    }, 0);
+                  }}
                   placeholder={activeSection === "central" 
                     ? "Search in PDF content (e.g., 'Section 302', 'murder', 'penalty')..." 
                     : `Search ${sectionLabel.toLowerCase()}...`}
@@ -681,7 +697,16 @@ export default function LawLibrary() {
                       <input
                         type="text"
                         value={filters.act_id || ''}
-                        onChange={(e) => handleFilterChange('act_id', e.target.value)}
+                        onChange={(e) => {
+                          const newValue = e.target.value;
+                          const cursorPosition = e.target.selectionStart;
+                          handleFilterChange('act_id', newValue);
+                          setTimeout(() => {
+                            if (e.target) {
+                              e.target.setSelectionRange(cursorPosition, cursorPosition);
+                            }
+                          }, 0);
+                        }}
                         placeholder="e.g., 186901"
                         className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                         style={{ fontFamily: 'Roboto, sans-serif' }}
@@ -716,7 +741,16 @@ export default function LawLibrary() {
                       <input
                         type="text"
                         value={filters.department || ''}
-                        onChange={(e) => handleFilterChange('department', e.target.value)}
+                        onChange={(e) => {
+                          const newValue = e.target.value;
+                          const cursorPosition = e.target.selectionStart;
+                          handleFilterChange('department', newValue);
+                          setTimeout(() => {
+                            if (e.target) {
+                              e.target.setSelectionRange(cursorPosition, cursorPosition);
+                            }
+                          }, 0);
+                        }}
                         placeholder="e.g., Legislative Department"
                         className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                         style={{ fontFamily: 'Roboto, sans-serif' }}
@@ -792,7 +826,16 @@ export default function LawLibrary() {
                       <input
                         type="text"
                         value={filters.act_number || ''}
-                        onChange={(e) => handleFilterChange('act_number', e.target.value)}
+                        onChange={(e) => {
+                          const newValue = e.target.value;
+                          const cursorPosition = e.target.selectionStart;
+                          handleFilterChange('act_number', newValue);
+                          setTimeout(() => {
+                            if (e.target) {
+                              e.target.setSelectionRange(cursorPosition, cursorPosition);
+                            }
+                          }, 0);
+                        }}
                         placeholder="e.g., Act 12 of 2023"
                         className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                         style={{ fontFamily: 'Roboto, sans-serif' }}
@@ -807,7 +850,16 @@ export default function LawLibrary() {
                       <input
                         type="text"
                         value={filters.department || ''}
-                        onChange={(e) => handleFilterChange('department', e.target.value)}
+                        onChange={(e) => {
+                          const newValue = e.target.value;
+                          const cursorPosition = e.target.selectionStart;
+                          handleFilterChange('department', newValue);
+                          setTimeout(() => {
+                            if (e.target) {
+                              e.target.setSelectionRange(cursorPosition, cursorPosition);
+                            }
+                          }, 0);
+                        }}
                         placeholder="e.g., Legislative Department"
                         className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                         style={{ fontFamily: 'Roboto, sans-serif' }}
